@@ -1,12 +1,63 @@
 const CHAVE = 'todolab:tarefas';
 let sequenciaId = 0;
 
+function obterArmazenamentoPadrao() {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function temInterfaceArmazenamento(armazenamento) {
+  return Boolean(
+    armazenamento
+    && typeof armazenamento.getItem === 'function'
+    && typeof armazenamento.setItem === 'function'
+  );
+}
+
+function classificarErroArmazenamento(erro, operacao) {
+  const nome = erro?.name || '';
+  if (nome === 'QuotaExceededError' || nome === 'NS_ERROR_DOM_QUOTA_REACHED') {
+    return {
+      disponivel: true,
+      mensagem: 'Limite de armazenamento local (QuotaExceededError) atingido; alterações mantidas apenas em memória.',
+    };
+  }
+  if (nome === 'SecurityError') {
+    return {
+      disponivel: false,
+      mensagem: 'Armazenamento local bloqueado pelo navegador (SecurityError); operando apenas em memória.',
+    };
+  }
+  const acao = operacao === 'leitura' ? 'ler' : 'gravar';
+  return {
+    disponivel: false,
+    mensagem: `Falha ao ${acao} no armazenamento local; operando apenas em memória.`,
+  };
+}
+
 function gerarIdUnico() {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
   sequenciaId += 1;
   return `tarefa-${Date.now()}-${sequenciaId}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizarRegistroArmazenado(item) {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+  if (typeof item.titulo !== 'string') return null;
+  const titulo = item.titulo.trim();
+  if (!titulo) return null;
+
+  return {
+    id: typeof item.id === 'string' && item.id.trim() ? item.id : gerarIdUnico(),
+    titulo,
+    concluida: Boolean(item.concluida),
+    criadaEm: typeof item.criadaEm === 'string' && item.criadaEm ? item.criadaEm : new Date().toISOString(),
+  };
 }
 
 function extrairTituloNormalizado(entrada) {
@@ -42,22 +93,87 @@ function criarTarefa(titulo) {
 }
 
 export class TodoStore {
-  constructor(armazenamento = globalThis.localStorage) {
+  constructor(armazenamento = obterArmazenamentoPadrao()) {
     this.armazenamento = armazenamento;
     this.ultimoErro = null;
+    this.erroPersistencia = null;
+    this.persistenciaDisponivel = temInterfaceArmazenamento(this.armazenamento);
     this.tarefas = this.carregar();
   }
 
   carregar() {
-    if (!this.armazenamento) return [];
-    const bruto = this.armazenamento.getItem(CHAVE);
-    if (!bruto) return [];
-    return JSON.parse(bruto);
+    if (!temInterfaceArmazenamento(this.armazenamento)) {
+      this.persistenciaDisponivel = false;
+      this.erroPersistencia = 'Armazenamento local indisponível; operando apenas em memória.';
+      return [];
+    }
+
+    let bruto;
+    try {
+      bruto = this.armazenamento.getItem(CHAVE);
+      this.persistenciaDisponivel = true;
+    } catch (erro) {
+      const diagnostico = classificarErroArmazenamento(erro, 'leitura');
+      this.persistenciaDisponivel = diagnostico.disponivel;
+      this.erroPersistencia = diagnostico.mensagem;
+      this.ultimoErro = diagnostico.mensagem;
+      return [];
+    }
+
+    if (!bruto) {
+      this.erroPersistencia = null;
+      return [];
+    }
+
+    let analisado;
+    try {
+      analisado = JSON.parse(bruto);
+    } catch {
+      const msg = 'Dados corrompidos encontrados no armazenamento local; a lista foi restaurada vazia com segurança.';
+      this.erroPersistencia = msg;
+      this.ultimoErro = msg;
+      return [];
+    }
+
+    if (!Array.isArray(analisado)) {
+      const msg = 'Estrutura incompatível encontrada no armazenamento local; a lista foi reiniciada com segurança.';
+      this.erroPersistencia = msg;
+      this.ultimoErro = msg;
+      return [];
+    }
+
+    const validas = analisado.map(normalizarRegistroArmazenado).filter(Boolean);
+    if (validas.length !== analisado.length) {
+      const msg = 'Registros inválidos foram descartados durante a restauração do armazenamento local.';
+      this.erroPersistencia = msg;
+      this.ultimoErro = msg;
+    } else {
+      this.erroPersistencia = null;
+    }
+
+    return validas;
   }
 
   salvar() {
-    if (!this.armazenamento) return;
-    this.armazenamento.setItem(CHAVE, JSON.stringify(this.tarefas));
+    if (!temInterfaceArmazenamento(this.armazenamento)) {
+      this.persistenciaDisponivel = false;
+      this.erroPersistencia = 'Armazenamento local indisponível; alterações mantidas apenas em memória.';
+      return false;
+    }
+
+    try {
+      this.armazenamento.setItem(CHAVE, JSON.stringify(this.tarefas));
+      this.persistenciaDisponivel = true;
+      this.erroPersistencia = null;
+      this.ultimoErro = null;
+      return true;
+    } catch (erro) {
+      const diagnostico = classificarErroArmazenamento(erro, 'escrita');
+      this.persistenciaDisponivel = diagnostico.disponivel;
+      this.erroPersistencia = diagnostico.mensagem;
+      this.ultimoErro = diagnostico.mensagem;
+      return false;
+    }
   }
 
   listar() {
