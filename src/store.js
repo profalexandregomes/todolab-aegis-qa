@@ -1,5 +1,28 @@
 const CHAVE = 'todolab:tarefas';
 
+function extrairTituloNormalizado(entrada) {
+  const bruto = typeof entrada === 'string'
+    ? entrada
+    : (entrada && typeof entrada === 'object' && !Array.isArray(entrada) ? entrada.titulo : null);
+
+  if (typeof bruto !== 'string') {
+    return {
+      erro: 'Informe um título textual válido para a tarefa.',
+      titulo: null,
+    };
+  }
+
+  const titulo = bruto.trim();
+  if (!titulo) {
+    return {
+      erro: 'O título da tarefa não pode estar vazio nem conter apenas espaços.',
+      titulo: null,
+    };
+  }
+
+  return { erro: null, titulo };
+}
+
 function criarTarefa(titulo) {
   return {
     id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
@@ -12,6 +35,7 @@ function criarTarefa(titulo) {
 export class TodoStore {
   constructor(armazenamento = globalThis.localStorage) {
     this.armazenamento = armazenamento;
+    this.ultimoErro = null;
     this.tarefas = this.carregar();
   }
 
@@ -31,8 +55,14 @@ export class TodoStore {
     return [...this.tarefas];
   }
 
-  adicionar(titulo) {
-    if (!titulo) return null;
+  adicionar(entrada) {
+    const { erro, titulo } = extrairTituloNormalizado(entrada);
+    if (erro) {
+      this.ultimoErro = erro;
+      return null;
+    }
+
+    this.ultimoErro = null;
     const tarefa = criarTarefa(titulo);
     this.tarefas.push(tarefa);
     this.salvar();
