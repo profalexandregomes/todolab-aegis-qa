@@ -175,6 +175,8 @@ function criarElemento(tagName, documento, attrsIniciais = {}) {
     focus() {
       documento.activeElement = elemento;
     },
+    select() {},
+    setSelectionRange() {},
     blur() {
       if (documento.activeElement === elemento) {
         documento.activeElement = documento.body;
