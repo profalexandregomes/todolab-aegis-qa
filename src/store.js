@@ -51,6 +51,13 @@ function gerarIdUnico() {
   return `tarefa-${Date.now()}-${sequenciaId}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function normalizarMinutosNaoNegativos(valor) {
+  if (typeof valor !== 'number' || !Number.isFinite(valor) || valor < 0) {
+    return 0;
+  }
+  return valor;
+}
+
 function normalizarPrioridade(valor) {
   return PRIORIDADES_VALIDAS.has(valor) ? valor : 'media';
 }
@@ -166,6 +173,8 @@ function normalizarRegistroArmazenado(item) {
     status,
     prioridade: normalizarPrioridade(item.prioridade),
     dataVencimento: normalizarDataVencimento(item.dataVencimento),
+    estimativaMin: normalizarMinutosNaoNegativos(item.estimativaMin),
+    esforcoRealMin: normalizarMinutosNaoNegativos(item.esforcoRealMin),
     criadaEm,
     atualizadaEm,
   };
@@ -204,6 +213,8 @@ function criarTarefa(titulo, opcoes = {}) {
     status,
     prioridade: normalizarPrioridade(opcoes.prioridade),
     dataVencimento: normalizarDataVencimento(opcoes.dataVencimento),
+    estimativaMin: normalizarMinutosNaoNegativos(opcoes.estimativaMin),
+    esforcoRealMin: 0,
     criadaEm: agora,
     atualizadaEm: agora,
   };
@@ -390,6 +401,22 @@ export class TodoStore {
       }
     }
     return { sucesso: true, limiteWip: this.limiteWip };
+  }
+
+  registrarEsforco(id, min) {
+    if (id == null || id === '') return null;
+    if (typeof min !== 'number' || !Number.isFinite(min) || min <= 0) {
+      return null;
+    }
+
+    const tarefa = this.tarefas.find((item) => item.id === id);
+    if (!tarefa) return null;
+
+    tarefa.esforcoRealMin = normalizarMinutosNaoNegativos(tarefa.esforcoRealMin) + min;
+    tarefa.atualizadaEm = new Date().toISOString();
+    this.ultimoErro = null;
+    this.salvar();
+    return tarefa;
   }
 
   remover(id) {

@@ -52,9 +52,39 @@
             type="date"
             aria-label="Data de vencimento"
           />
+          <label class="sr-only" for="todo-estimate">Estimativa em minutos</label>
+          <input
+            id="todo-estimate"
+            name="estimativaMin"
+            type="number"
+            min="0"
+            step="5"
+            placeholder="25 min (est.)"
+            aria-label="Estimativa em minutos"
+          />
           <button type="submit">Adicionar</button>
         </form>
         <p id="todo-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+
+        <section id="pomodoro-panel" class="pomodoro-panel" aria-label="Cronômetro de Foco (Pomodoro)">
+          <div class="pomodoro-panel__info">
+            <span class="label">Cronômetro Pomodoro</span>
+            <div class="pomodoro-panel__readout">
+              <strong id="pomodoro-timer" class="pomodoro-timer">25:00</strong>
+              <span id="pomodoro-mode" class="pomodoro-mode">Foco (25 min)</span>
+            </div>
+          </div>
+          <div class="pomodoro-panel__controls">
+            <label class="sr-only" for="pomodoro-task">Tarefa em foco no Pomodoro</label>
+            <select id="pomodoro-task" name="pomodoroTarefa" aria-label="Tarefa em foco no Pomodoro">
+              <option value="">Selecione uma tarefa</option>
+            </select>
+            <button id="pomodoro-start" type="button">Iniciar Foco</button>
+            <button id="pomodoro-pause" type="button">Pausar</button>
+            <button id="pomodoro-reset" type="button">Reiniciar</button>
+            <button id="pomodoro-complete" type="button">Concluir Ciclo</button>
+          </div>
+        </section>
 
         <div class="kanban-toolbar">
           <form id="wip-form" class="wip-control">

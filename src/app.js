@@ -22,20 +22,122 @@ const ROTULOS_VENCIMENTO = {
   sem_prazo: '',
 };
 
+const FOCO_MINUTOS = 25;
+const PAUSA_MINUTOS = 5;
+const FOCO_SEGUNDOS = FOCO_MINUTOS * 60;
+const PAUSA_SEGUNDOS = PAUSA_MINUTOS * 60;
+
 const store = new TodoStore();
 const form = document.querySelector('#todo-form');
 const input = document.querySelector('#todo-input');
 const prioritySelect = document.querySelector('#todo-priority');
 const dueDateInput = document.querySelector('#todo-due-date');
+const estimateInput = document.querySelector('#todo-estimate');
 const feedback = document.querySelector('#todo-feedback');
 const storageAlert = document.querySelector('#storage-alert');
 const kanbanAlert = document.querySelector('#kanban-alert');
 const wipForm = document.querySelector('#wip-form');
 const wipInput = document.querySelector('#wip-limit-input');
 const sortSelect = document.querySelector('#sort-select');
+const pomodoroTimer = document.querySelector('#pomodoro-timer');
+const pomodoroMode = document.querySelector('#pomodoro-mode');
+const pomodoroTaskSelect = document.querySelector('#pomodoro-task');
+const pomodoroStartBtn = document.querySelector('#pomodoro-start');
+const pomodoroPauseBtn = document.querySelector('#pomodoro-pause');
+const pomodoroResetBtn = document.querySelector('#pomodoro-reset');
+const pomodoroCompleteBtn = document.querySelector('#pomodoro-complete');
 const emptyState = document.querySelector('#empty-state');
 
 let idArrastado = null;
+let modoPomodoro = 'foco';
+let segundosRestantes = FOCO_SEGUNDOS;
+let intervaloPomodoro = null;
+let pomodoroTaskId = '';
+
+function formatarRelogio(segundosTotais) {
+  const min = Math.floor(Math.max(0, segundosTotais) / 60);
+  const seg = Math.max(0, segundosTotais) % 60;
+  return `${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
+}
+
+function atualizarVisorPomodoro() {
+  if (pomodoroTimer) {
+    pomodoroTimer.textContent = formatarRelogio(segundosRestantes);
+  }
+  if (pomodoroMode) {
+    pomodoroMode.textContent = modoPomodoro === 'foco'
+      ? `Foco (${FOCO_MINUTOS} min)`
+      : `Pausa Curta (${PAUSA_MINUTOS} min)`;
+  }
+}
+
+function pausarPomodoro() {
+  if (intervaloPomodoro !== null) {
+    clearInterval(intervaloPomodoro);
+    intervaloPomodoro = null;
+  }
+  atualizarVisorPomodoro();
+}
+
+function concluirCicloPomodoro() {
+  pausarPomodoro();
+  if (modoPomodoro === 'foco') {
+    if (pomodoroTaskId) {
+      store.registrarEsforco(pomodoroTaskId, FOCO_MINUTOS);
+    }
+    modoPomodoro = 'pausa';
+    segundosRestantes = PAUSA_SEGUNDOS;
+  } else {
+    modoPomodoro = 'foco';
+    segundosRestantes = FOCO_SEGUNDOS;
+  }
+  atualizarVisorPomodoro();
+  render();
+}
+
+function iniciarPomodoro() {
+  if (intervaloPomodoro !== null) return;
+  intervaloPomodoro = setInterval(() => {
+    segundosRestantes -= 1;
+    if (segundosRestantes <= 0) {
+      concluirCicloPomodoro();
+      return;
+    }
+    atualizarVisorPomodoro();
+  }, 1000);
+  atualizarVisorPomodoro();
+}
+
+function reiniciarPomodoro() {
+  pausarPomodoro();
+  modoPomodoro = 'foco';
+  segundosRestantes = FOCO_SEGUNDOS;
+  atualizarVisorPomodoro();
+}
+
+function sincronizarSeletorPomodoro(tarefas) {
+  if (pomodoroTaskId && !tarefas.some((tarefa) => tarefa.id === pomodoroTaskId)) {
+    pausarPomodoro();
+    pomodoroTaskId = '';
+  }
+
+  if (!pomodoroTaskSelect) return;
+
+  pomodoroTaskSelect.replaceChildren();
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Selecione uma tarefa';
+  pomodoroTaskSelect.append(placeholder);
+
+  for (const tarefa of tarefas) {
+    const option = document.createElement('option');
+    option.value = tarefa.id;
+    option.textContent = tarefa.titulo;
+    pomodoroTaskSelect.append(option);
+  }
+
+  pomodoroTaskSelect.value = pomodoroTaskId;
+}
 
 function sincronizarAlertaPersistencia() {
   if (!storageAlert) return;
@@ -97,6 +199,14 @@ function moverTarefa(id, novoStatus) {
   return true;
 }
 
+function formatarDesvioEsforco(estimativaMin, esforcoRealMin) {
+  if (!estimativaMin || esforcoRealMin === 0) return '';
+  const desvio = esforcoRealMin - estimativaMin;
+  if (desvio > 0) return `+${desvio} min`;
+  if (desvio < 0) return `${desvio} min`;
+  return 'no estimado';
+}
+
 function criarCartaoTarefa(tarefa) {
   const item = document.createElement('li');
   item.className = `todo-card ${tarefa.concluida ? 'todo--done' : ''}`;
@@ -142,6 +252,10 @@ function criarCartaoTarefa(tarefa) {
   remove.setAttribute('aria-label', `Remover ${tarefa.titulo}`);
   remove.addEventListener('click', () => {
     limparAvisoKanban();
+    if (pomodoroTaskId === tarefa.id) {
+      pausarPomodoro();
+      pomodoroTaskId = '';
+    }
     store.remover(tarefa.id);
     render();
   });
@@ -173,8 +287,38 @@ function criarCartaoTarefa(tarefa) {
     metaRow.append(dataTexto);
   }
 
+  const effortRow = document.createElement('div');
+  effortRow.className = 'todo-card__effort-row';
+
+  const estimativa = tarefa.estimativaMin ?? 0;
+  const real = tarefa.esforcoRealMin ?? 0;
+  const desvioTexto = formatarDesvioEsforco(estimativa, real);
+
+  const effortLabel = document.createElement('span');
+  effortLabel.className = 'todo-card__effort';
+  effortLabel.textContent = `Estimativa: ${estimativa} min · Real: ${real} min`;
+  effortRow.append(effortLabel);
+
+  if (desvioTexto) {
+    const desvioBadge = document.createElement('span');
+    const positivo = real > estimativa;
+    desvioBadge.className = `badge ${positivo ? 'badge--over-effort' : 'badge--on-effort'}`;
+    desvioBadge.textContent = desvioTexto;
+    effortRow.append(desvioBadge);
+  }
+
   const controlsRow = document.createElement('div');
   controlsRow.className = 'todo-card__controls';
+
+  const addEffortBtn = document.createElement('button');
+  addEffortBtn.type = 'button';
+  addEffortBtn.className = 'effort-btn';
+  addEffortBtn.textContent = '+15 min';
+  addEffortBtn.setAttribute('aria-label', `Registrar +15 min de esforço em ${tarefa.titulo}`);
+  addEffortBtn.addEventListener('click', () => {
+    store.registrarEsforco(tarefa.id, 15);
+    render();
+  });
 
   const moveSelect = document.createElement('select');
   moveSelect.className = 'kanban-move-select';
@@ -190,14 +334,17 @@ function criarCartaoTarefa(tarefa) {
     moverTarefa(tarefa.id, moveSelect.value);
   });
 
-  controlsRow.append(moveSelect);
-  item.append(topRow, metaRow, controlsRow);
+  controlsRow.append(addEffortBtn, moveSelect);
+  item.append(topRow, metaRow, effortRow, controlsRow);
   return item;
 }
 
 function render() {
   sincronizarAlertaPersistencia();
   const baseTarefas = store.listar();
+  sincronizarSeletorPomodoro(baseTarefas);
+  atualizarVisorPomodoro();
+
   const ordenarPorPrioridade = sortSelect?.value === 'prioridade';
   const tarefas = ordenarPorPrioridade ? ordenarTarefas(baseTarefas) : baseTarefas;
   emptyState.hidden = tarefas.length > 0;
@@ -278,11 +425,24 @@ if (sortSelect) {
   sortSelect.addEventListener('change', render);
 }
 
+if (pomodoroTaskSelect) {
+  pomodoroTaskSelect.addEventListener('change', () => {
+    pomodoroTaskId = pomodoroTaskSelect.value;
+  });
+}
+
+if (pomodoroStartBtn) pomodoroStartBtn.addEventListener('click', iniciarPomodoro);
+if (pomodoroPauseBtn) pomodoroPauseBtn.addEventListener('click', pausarPomodoro);
+if (pomodoroResetBtn) pomodoroResetBtn.addEventListener('click', reiniciarPomodoro);
+if (pomodoroCompleteBtn) pomodoroCompleteBtn.addEventListener('click', concluirCicloPomodoro);
+
 form.addEventListener('submit', (event) => {
   event.preventDefault();
+  const estimativaBruta = estimateInput?.value ? Number(estimateInput.value) : 0;
   const tarefa = store.adicionar(input.value, {
     prioridade: prioritySelect?.value,
     dataVencimento: dueDateInput?.value || null,
+    estimativaMin: Number.isFinite(estimativaBruta) ? estimativaBruta : 0,
   });
   if (!tarefa) {
     exibirErro(store.ultimoErro || 'Informe um título válido para a tarefa.');
@@ -294,6 +454,7 @@ form.addEventListener('submit', (event) => {
   input.value = '';
   if (prioritySelect) prioritySelect.value = 'media';
   if (dueDateInput) dueDateInput.value = '';
+  if (estimateInput) estimateInput.value = '';
   input.focus();
   render();
 });
