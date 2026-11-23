@@ -70,10 +70,12 @@ h1 span { color: var(--acid); font-style: italic; }
 .status { display: flex; align-items: center; gap: 9px; color: var(--acid); font-size: .72rem; text-transform: uppercase; }
 .status__light { width: 9px; height: 9px; border-radius: 50%; background: var(--acid); box-shadow: 0 0 18px var(--acid); }
 
-.composer { display: grid; grid-template-columns: 1fr auto; padding: 26px; border-bottom: 1px solid var(--line); }
-input, button { font: inherit; }
-.composer input { min-width: 0; padding: 17px 18px; color: var(--ink); background: #0f110f; border: 1px solid var(--line); border-right: 0; outline: none; }
-.composer input:focus { border-color: var(--acid); box-shadow: inset 4px 0 0 var(--acid); }
+.composer { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; padding: 26px; border-bottom: 1px solid var(--line); }
+input, button, select { font: inherit; }
+.composer input,
+.composer select { min-width: 0; padding: 14px 16px; color: var(--ink); background: #0f110f; border: 1px solid var(--line); outline: none; }
+.composer input:focus,
+.composer select:focus { border-color: var(--acid); box-shadow: inset 4px 0 0 var(--acid); }
 .composer input[aria-invalid="true"] { border-color: var(--orange); box-shadow: inset 4px 0 0 var(--orange); }
 .composer button { padding: 0 24px; color: #101210; background: var(--acid); border: 1px solid var(--acid); cursor: pointer; font-weight: 500; }
 .composer button:hover { background: var(--ink); border-color: var(--ink); }
@@ -134,6 +136,22 @@ input, button { font: inherit; }
   text-transform: uppercase;
 }
 .wip-control button:hover { border-color: var(--acid); color: var(--acid); }
+
+.sort-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: .78rem;
+  color: var(--muted);
+}
+.sort-control select {
+  padding: 6px 10px;
+  color: var(--ink);
+  background: #0f110f;
+  border: 1px solid var(--line);
+  font-size: .76rem;
+}
+.sort-control select:focus { border-color: var(--acid); outline: none; }
 
 .kanban-alert {
   margin: 0;
@@ -213,6 +231,28 @@ input, button { font: inherit; }
 .todo-card__main input { width: 17px; height: 17px; accent-color: var(--acid); margin-top: 2px; }
 .todo-card__title { word-break: break-word; font-size: .86rem; line-height: 1.4; }
 .todo--done .todo-card__title { color: var(--muted); text-decoration: line-through; }
+.todo-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.badge {
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.badge--prio-alta { border-color: var(--orange); color: var(--orange); }
+.badge--prio-media { border-color: var(--acid); color: var(--acid); }
+.badge--prio-baixa { color: var(--muted); }
+.badge--due-atrasada { background: rgb(255 107 53 / 18%); border-color: var(--orange); color: var(--orange); }
+.badge--due-vence_hoje { background: rgb(199 255 67 / 14%); border-color: var(--acid); color: var(--acid); }
+.badge--due-proxima { border-color: var(--ink); color: var(--ink); }
+.badge--due-futura,
+.badge--due-concluida { color: var(--muted); }
+.todo-card__date { color: var(--muted); font-size: .68rem; }
 .todo-card__controls { display: flex; justify-content: flex-end; }
 .kanban-move-select {
   width: 100%;
@@ -244,13 +284,16 @@ input, button { font: inherit; }
 @keyframes arrive { from { opacity: 0; transform: translateY(-6px); } }
 
 @media (max-width: 960px) {
+  .composer { grid-template-columns: 1fr 1fr; }
+  .composer input#todo-input,
+  .composer button { grid-column: 1 / -1; min-height: 48px; }
+  .kanban-toolbar { flex-direction: column; align-items: flex-start; }
   .kanban-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 620px) {
   .shell { width: min(100% - 24px, 1240px); padding-top: 44px; }
   .composer { grid-template-columns: 1fr; }
-  .composer input { border-right: 1px solid var(--line); }
   .composer button { min-height: 50px; }
   .kanban-board { grid-template-columns: 1fr; }
   .workbench__footer { align-items: flex-start; flex-direction: column; }

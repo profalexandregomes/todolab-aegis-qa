@@ -1,6 +1,9 @@
 const CHAVE = 'todolab:tarefas';
 const CHAVE_CONFIG = 'todolab:config';
 const STATUS_VALIDOS = new Set(['todo', 'in_progress', 'review', 'done']);
+const PRIORIDADES_VALIDAS = new Set(['alta', 'media', 'baixa']);
+const PESO_PRIORIDADE = { alta: 0, media: 1, baixa: 2 };
+const MS_POR_DIA = 86_400_000;
 let sequenciaId = 0;
 
 function obterArmazenamentoPadrao() {
@@ -48,6 +51,97 @@ function gerarIdUnico() {
   return `tarefa-${Date.now()}-${sequenciaId}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function normalizarPrioridade(valor) {
+  return PRIORIDADES_VALIDAS.has(valor) ? valor : 'media';
+}
+
+function normalizarDataVencimento(valor) {
+  if (typeof valor !== 'string') return null;
+  const texto = valor.trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(texto);
+  if (!match) return null;
+
+  const ano = Number(match[1]);
+  const mes = Number(match[2]);
+  const dia = Number(match[3]);
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+
+  const dataUtc = new Date(Date.UTC(ano, mes - 1, dia));
+  if (
+    dataUtc.getUTCFullYear() !== ano
+    || dataUtc.getUTCMonth() !== mes - 1
+    || dataUtc.getUTCDate() !== dia
+  ) {
+    return null;
+  }
+
+  return texto;
+}
+
+function extrairDiaCivilUtc(dataReferencia) {
+  if (dataReferencia instanceof Date && !Number.isNaN(dataReferencia.getTime())) {
+    return Date.UTC(
+      dataReferencia.getFullYear(),
+      dataReferencia.getMonth(),
+      dataReferencia.getDate()
+    );
+  }
+  if (typeof dataReferencia === 'string') {
+    const dataIso = normalizarDataVencimento(dataReferencia);
+    if (dataIso) {
+      const [ano, mes, dia] = dataIso.split('-').map(Number);
+      return Date.UTC(ano, mes - 1, dia);
+    }
+    const convertida = new Date(dataReferencia);
+    if (!Number.isNaN(convertida.getTime())) {
+      return Date.UTC(
+        convertida.getFullYear(),
+        convertida.getMonth(),
+        convertida.getDate()
+      );
+    }
+  }
+  const hoje = new Date();
+  return Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+}
+
+export function classificarVencimento(tarefa, dataReferencia = new Date()) {
+  if (!tarefa || tarefa.concluida === true || tarefa.status === 'done') {
+    return 'concluida';
+  }
+
+  const dataVencimento = normalizarDataVencimento(tarefa.dataVencimento);
+  if (!dataVencimento) {
+    return 'sem_prazo';
+  }
+
+  const [ano, mes, dia] = dataVencimento.split('-').map(Number);
+  const vencimentoUtc = Date.UTC(ano, mes - 1, dia);
+  const referenciaUtc = extrairDiaCivilUtc(dataReferencia);
+  const diferencaDias = Math.round((vencimentoUtc - referenciaUtc) / MS_POR_DIA);
+
+  if (diferencaDias < 0) return 'atrasada';
+  if (diferencaDias === 0) return 'vence_hoje';
+  if (diferencaDias <= 3) return 'proxima';
+  return 'futura';
+}
+
+export function ordenarTarefas(tarefas = []) {
+  return [...tarefas].sort((a, b) => {
+    const concluidaA = a?.concluida || a?.status === 'done' ? 1 : 0;
+    const concluidaB = b?.concluida || b?.status === 'done' ? 1 : 0;
+    if (concluidaA !== concluidaB) return concluidaA - concluidaB;
+
+    const pesoA = PESO_PRIORIDADE[normalizarPrioridade(a?.prioridade)];
+    const pesoB = PESO_PRIORIDADE[normalizarPrioridade(b?.prioridade)];
+    if (pesoA !== pesoB) return pesoA - pesoB;
+
+    const criadaA = Date.parse(a?.criadaEm || '') || 0;
+    const criadaB = Date.parse(b?.criadaEm || '') || 0;
+    return criadaA - criadaB;
+  });
+}
+
 function normalizarRegistroArmazenado(item) {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
   if (typeof item.titulo !== 'string') return null;
@@ -70,6 +164,8 @@ function normalizarRegistroArmazenado(item) {
     titulo,
     concluida,
     status,
+    prioridade: normalizarPrioridade(item.prioridade),
+    dataVencimento: normalizarDataVencimento(item.dataVencimento),
     criadaEm,
     atualizadaEm,
   };
@@ -106,6 +202,8 @@ function criarTarefa(titulo, opcoes = {}) {
     titulo,
     concluida: status === 'done',
     status,
+    prioridade: normalizarPrioridade(opcoes.prioridade),
+    dataVencimento: normalizarDataVencimento(opcoes.dataVencimento),
     criadaEm: agora,
     atualizadaEm: agora,
   };

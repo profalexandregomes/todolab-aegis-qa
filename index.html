@@ -39,6 +39,19 @@
             placeholder="O que precisa ser feito?"
             aria-describedby="todo-feedback"
           />
+          <label class="sr-only" for="todo-priority">Prioridade da tarefa</label>
+          <select id="todo-priority" name="prioridade" aria-label="Prioridade da tarefa">
+            <option value="alta">Alta</option>
+            <option value="media" selected>Média</option>
+            <option value="baixa">Baixa</option>
+          </select>
+          <label class="sr-only" for="todo-due-date">Data de vencimento</label>
+          <input
+            id="todo-due-date"
+            name="dataVencimento"
+            type="date"
+            aria-label="Data de vencimento"
+          />
           <button type="submit">Adicionar</button>
         </form>
         <p id="todo-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
@@ -59,6 +72,13 @@
             />
             <button type="submit">Aplicar</button>
           </form>
+          <div class="sort-control">
+            <label for="sort-select">Ordenação</label>
+            <select id="sort-select" name="ordenacao" aria-label="Ordenação das tarefas">
+              <option value="padrao" selected>Ordem de criação</option>
+              <option value="prioridade">Ordenar por prioridade</option>
+            </select>
+          </div>
         </div>
 
         <p id="kanban-alert" class="kanban-alert" role="status" aria-live="polite" hidden></p>
