@@ -41,6 +41,12 @@ function criarElemento(tagName, documento, attrsIniciais = {}) {
       if (valor == null) attributes.delete('name');
       else attributes.set('name', String(valor));
     },
+    get draggable() {
+      return attributes.get('draggable') === 'true';
+    },
+    set draggable(valor) {
+      attributes.set('draggable', String(Boolean(valor)));
+    },
     get className() {
       return classNameValor;
     },
@@ -105,6 +111,7 @@ function criarElemento(tagName, documento, attrsIniciais = {}) {
       const texto = valor == null ? '' : String(valor);
       attributes.set(chave, texto);
       if (chave === 'class') classNameValor = texto;
+      if (chave === 'value') elemento.value = texto;
       if (chave === 'hidden') elemento.hidden = true;
       if (chave === 'disabled') elemento.disabled = true;
     },
@@ -179,20 +186,30 @@ function criarElemento(tagName, documento, attrsIniciais = {}) {
     dispatchEvent(evento) {
       const evt = {
         defaultPrevented: false,
+        cancelBubble: false,
         preventDefault() {
           this.defaultPrevented = true;
         },
-        stopPropagation() {},
+        stopPropagation() {
+          this.cancelBubble = true;
+        },
         ...evento,
         target: evento.target || elemento,
         currentTarget: elemento,
       };
-      const handlers = [...(listeners.get(evt.type) || [])];
-      for (const fn of handlers) {
-        fn.call(elemento, evt);
+      let atual = elemento;
+      while (atual && !evt.cancelBubble) {
+        evt.currentTarget = atual;
+        const handlers = [...(atual._listeners?.get(evt.type) || [])];
+        for (const fn of handlers) {
+          fn.call(atual, evt);
+        }
+        if (evt.bubbles === false) break;
+        atual = atual.parentNode;
       }
       return evt;
     },
+    _listeners: listeners,
     querySelector(seletor) {
       return buscarEm(children, seletor)[0] || null;
     },
@@ -296,8 +313,14 @@ function analisarHtml(html, documento) {
   const ignorarTags = new Set(['!doctype', 'html', 'head', 'meta', 'title', 'link', 'script', 'body']);
   const pilha = [documento.body];
   const tokenRegex = /<\/([a-zA-Z0-9-]+)\s*>|<([a-zA-Z0-9-]+)([^>]*)>/g;
+  let ultimoIndice = 0;
   let match;
   while ((match = tokenRegex.exec(html)) !== null) {
+    const textoEntre = html.slice(ultimoIndice, match.index);
+    if (textoEntre && textoEntre.trim() && pilha.length > 1) {
+      pilha[pilha.length - 1].append(textoEntre.replace(/\s+/g, ' '));
+    }
+    ultimoIndice = tokenRegex.lastIndex;
     if (match[1]) {
       const fechando = match[1].toLowerCase();
       if (!ignorarTags.has(fechando) && pilha.length > 1 && pilha[pilha.length - 1].tagName.toLowerCase() === fechando) {
