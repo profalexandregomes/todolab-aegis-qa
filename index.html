@@ -43,7 +43,59 @@
         </form>
         <p id="todo-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
 
-        <ul id="todo-list" class="todo-list" aria-live="polite"></ul>
+        <div class="kanban-toolbar">
+          <form id="wip-form" class="wip-control">
+            <label for="wip-limit-input">
+              Limite de WIP (Work in Progress — Trabalho em Progresso)
+            </label>
+            <input
+              id="wip-limit-input"
+              name="wipLimit"
+              type="number"
+              min="1"
+              max="99"
+              value="2"
+              aria-label="Limite de WIP (Work in Progress — Trabalho em Progresso)"
+            />
+            <button type="submit">Aplicar</button>
+          </form>
+        </div>
+
+        <p id="kanban-alert" class="kanban-alert" role="status" aria-live="polite" hidden></p>
+
+        <div id="kanban-board" class="kanban-board" aria-label="Quadro Scrum-Kanban">
+          <section class="kanban-col" data-status="todo" aria-labelledby="col-title-todo">
+            <header class="kanban-col__head">
+              <h3 id="col-title-todo">A Fazer</h3>
+              <span id="count-todo" class="kanban-col__count">0</span>
+            </header>
+            <ul id="list-todo" class="kanban-list"></ul>
+          </section>
+
+          <section class="kanban-col" data-status="in_progress" aria-labelledby="col-title-in_progress">
+            <header class="kanban-col__head">
+              <h3 id="col-title-in_progress">Em Progresso</h3>
+              <span id="count-in_progress" class="kanban-col__count">0 / 2</span>
+            </header>
+            <ul id="list-in_progress" class="kanban-list"></ul>
+          </section>
+
+          <section class="kanban-col" data-status="review" aria-labelledby="col-title-review">
+            <header class="kanban-col__head">
+              <h3 id="col-title-review">Em Revisão</h3>
+              <span id="count-review" class="kanban-col__count">0</span>
+            </header>
+            <ul id="list-review" class="kanban-list"></ul>
+          </section>
+
+          <section class="kanban-col" data-status="done" aria-labelledby="col-title-done">
+            <header class="kanban-col__head">
+              <h3 id="col-title-done">Concluído</h3>
+              <span id="count-done" class="kanban-col__count">0</span>
+            </header>
+            <ul id="list-done" class="kanban-list"></ul>
+          </section>
+        </div>
 
         <footer class="workbench__footer">
           <p id="empty-state">Nenhuma tarefa ainda. Comece com um critério claro.</p>
