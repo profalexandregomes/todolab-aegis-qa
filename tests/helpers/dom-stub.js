@@ -20,6 +20,19 @@ function criarElemento(tagName, documento, attrsIniciais = {}) {
     checked: false,
     disabled: false,
     hidden: false,
+    get selected() {
+      return attributes.has('selected') || (elemento.parentNode?.tagName === 'SELECT' && elemento.parentNode.value === elemento.value);
+    },
+    set selected(valor) {
+      if (valor) {
+        attributes.set('selected', '');
+        if (elemento.parentNode?.tagName === 'SELECT') {
+          elemento.parentNode.value = elemento.value;
+        }
+      } else {
+        attributes.delete('selected');
+      }
+    },
     get id() {
       return attributes.get('id') || '';
     },
