@@ -4,8 +4,24 @@ const store = new TodoStore();
 const form = document.querySelector('#todo-form');
 const input = document.querySelector('#todo-input');
 const feedback = document.querySelector('#todo-feedback');
+const storageAlert = document.querySelector('#storage-alert');
 const list = document.querySelector('#todo-list');
 const emptyState = document.querySelector('#empty-state');
+
+function sincronizarAlertaPersistencia() {
+  if (!storageAlert) return;
+  const mensagem = store.erroPersistencia
+    || (!store.persistenciaDisponivel
+      ? 'Persistência local indisponível; operando apenas em memória.'
+      : '');
+  if (mensagem) {
+    storageAlert.textContent = mensagem;
+    storageAlert.hidden = false;
+  } else {
+    storageAlert.textContent = '';
+    storageAlert.hidden = true;
+  }
+}
 
 function exibirErro(mensagem) {
   if (feedback) {
@@ -24,6 +40,7 @@ function limparErro() {
 }
 
 function render() {
+  sincronizarAlertaPersistencia();
   const tarefas = store.listar();
   list.replaceChildren();
   emptyState.hidden = tarefas.length > 0;

@@ -88,6 +88,16 @@ input, button { font: inherit; }
 }
 .feedback[hidden] { display: none; }
 
+.storage-alert {
+  margin: 0;
+  padding: 14px 26px;
+  border-bottom: 1px solid var(--orange);
+  background: rgb(255 107 53 / 14%);
+  color: var(--ink);
+  font-size: .8rem;
+}
+.storage-alert[hidden] { display: none; }
+
 .todo-list { list-style: none; margin: 0; padding: 0 26px; }
 .todo { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; min-height: 64px; border-bottom: 1px solid var(--line); animation: arrive .25s ease-out both; }
 .todo input { width: 19px; height: 19px; accent-color: var(--acid); }
