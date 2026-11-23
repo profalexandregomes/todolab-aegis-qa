@@ -27,6 +27,20 @@ function criarElemento(tagName, documento, attrsIniciais = {}) {
       if (valor) attributes.set('id', String(valor));
       else attributes.delete('id');
     },
+    get type() {
+      return attributes.get('type') || '';
+    },
+    set type(valor) {
+      if (valor == null) attributes.delete('type');
+      else attributes.set('type', String(valor));
+    },
+    get name() {
+      return attributes.get('name') || '';
+    },
+    set name(valor) {
+      if (valor == null) attributes.delete('name');
+      else attributes.set('name', String(valor));
+    },
     get className() {
       return classNameValor;
     },

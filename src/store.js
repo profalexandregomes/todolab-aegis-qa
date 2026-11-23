@@ -1,4 +1,13 @@
 const CHAVE = 'todolab:tarefas';
+let sequenciaId = 0;
+
+function gerarIdUnico() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  sequenciaId += 1;
+  return `tarefa-${Date.now()}-${sequenciaId}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function extrairTituloNormalizado(entrada) {
   const bruto = typeof entrada === 'string'
@@ -25,7 +34,7 @@ function extrairTituloNormalizado(entrada) {
 
 function criarTarefa(titulo) {
   return {
-    id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+    id: gerarIdUnico(),
     titulo,
     concluida: false,
     criadaEm: new Date().toISOString(),
@@ -70,6 +79,7 @@ export class TodoStore {
   }
 
   alternar(id) {
+    if (id == null || id === '') return;
     const tarefa = this.tarefas.find((item) => item.id === id);
     if (!tarefa) return;
     tarefa.concluida = !tarefa.concluida;
@@ -77,10 +87,11 @@ export class TodoStore {
   }
 
   remover(id) {
-    const alvo = this.tarefas.find((tarefa) => tarefa.id === id);
-    if (!alvo) return;
-    const indice = this.tarefas.findIndex((tarefa) => tarefa.titulo === alvo.titulo);
+    if (id == null || id === '') return false;
+    const indice = this.tarefas.findIndex((tarefa) => tarefa.id === id);
+    if (indice === -1) return false;
     this.tarefas.splice(indice, 1);
     this.salvar();
+    return true;
   }
 }
