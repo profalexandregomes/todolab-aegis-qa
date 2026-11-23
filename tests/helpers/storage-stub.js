@@ -7,6 +7,7 @@ export function criarArmazenamentoMemoria(dadosIniciais = {}) {
     clear: 0,
   };
   let erroAoSalvar = null;
+  let erroAoLer = null;
 
   return {
     get chamadas() {
@@ -15,8 +16,14 @@ export function criarArmazenamentoMemoria(dadosIniciais = {}) {
     definirErroAoSalvar(erro) {
       erroAoSalvar = erro;
     },
+    definirErroAoLer(erro) {
+      erroAoLer = erro;
+    },
     getItem(chave) {
       chamadas.getItem += 1;
+      if (erroAoLer) {
+        throw erroAoLer;
+      }
       return mapa.has(chave) ? mapa.get(chave) : null;
     },
     setItem(chave, valor) {
