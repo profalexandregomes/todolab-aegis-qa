@@ -136,6 +136,11 @@ function criarElemento(tagName, documento, attrsIniciais = {}) {
         } else if (no) {
           no.parentNode = elemento;
           children.push(no);
+          if (elemento.tagName === 'SELECT' && no.tagName === 'OPTION') {
+            if (no.hasAttribute('selected') || !elemento.value) {
+              elemento.value = no.value;
+            }
+          }
         }
       }
     },
@@ -223,6 +228,11 @@ function criarElemento(tagName, documento, attrsIniciais = {}) {
         atual = atual.parentNode;
       }
       return null;
+    },
+    contains(alvo) {
+      if (!alvo) return false;
+      if (alvo === elemento) return true;
+      return children.some((filho) => filho.contains(alvo));
     },
   };
 
@@ -336,8 +346,7 @@ function analisarHtml(html, documento) {
     const attrs = extrairAtributos(attrsLimpas);
     const el = criarElemento(tag, documento, attrs);
     const pai = pilha[pilha.length - 1];
-    pai.children.push(el);
-    el.parentNode = pai;
+    pai.append(el);
     todos.push(el);
     if (!autoFecha) {
       pilha.push(el);

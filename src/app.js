@@ -1,4 +1,4 @@
-import { TodoStore } from './store.js';
+import { TodoStore, classificarVencimento, ordenarTarefas } from './store.js';
 
 const COLUNAS = [
   { status: 'todo', rotulo: 'A Fazer' },
@@ -7,14 +7,32 @@ const COLUNAS = [
   { status: 'done', rotulo: 'Concluído' },
 ];
 
+const ROTULOS_PRIORIDADE = {
+  alta: 'Alta',
+  media: 'Média',
+  baixa: 'Baixa',
+};
+
+const ROTULOS_VENCIMENTO = {
+  atrasada: 'Atrasada',
+  vence_hoje: 'Vence hoje',
+  proxima: 'Próxima',
+  futura: 'Futura',
+  concluida: 'Concluída',
+  sem_prazo: '',
+};
+
 const store = new TodoStore();
 const form = document.querySelector('#todo-form');
 const input = document.querySelector('#todo-input');
+const prioritySelect = document.querySelector('#todo-priority');
+const dueDateInput = document.querySelector('#todo-due-date');
 const feedback = document.querySelector('#todo-feedback');
 const storageAlert = document.querySelector('#storage-alert');
 const kanbanAlert = document.querySelector('#kanban-alert');
 const wipForm = document.querySelector('#wip-form');
 const wipInput = document.querySelector('#wip-limit-input');
+const sortSelect = document.querySelector('#sort-select');
 const emptyState = document.querySelector('#empty-state');
 
 let idArrastado = null;
@@ -130,6 +148,31 @@ function criarCartaoTarefa(tarefa) {
 
   topRow.append(checkbox, title, remove);
 
+  const metaRow = document.createElement('div');
+  metaRow.className = 'todo-card__meta';
+
+  const prioridade = tarefa.prioridade || 'media';
+  const badgePrioridade = document.createElement('span');
+  badgePrioridade.className = `badge badge--prio-${prioridade}`;
+  badgePrioridade.textContent = ROTULOS_PRIORIDADE[prioridade] || 'Média';
+  metaRow.append(badgePrioridade);
+
+  const statusPrazo = classificarVencimento(tarefa);
+  const rotuloPrazo = ROTULOS_VENCIMENTO[statusPrazo];
+  if (rotuloPrazo) {
+    const badgePrazo = document.createElement('span');
+    badgePrazo.className = `badge badge--due-${statusPrazo}`;
+    badgePrazo.textContent = rotuloPrazo;
+    metaRow.append(badgePrazo);
+  }
+
+  if (tarefa.dataVencimento) {
+    const dataTexto = document.createElement('span');
+    dataTexto.className = 'todo-card__date';
+    dataTexto.textContent = tarefa.dataVencimento;
+    metaRow.append(dataTexto);
+  }
+
   const controlsRow = document.createElement('div');
   controlsRow.className = 'todo-card__controls';
 
@@ -148,13 +191,15 @@ function criarCartaoTarefa(tarefa) {
   });
 
   controlsRow.append(moveSelect);
-  item.append(topRow, controlsRow);
+  item.append(topRow, metaRow, controlsRow);
   return item;
 }
 
 function render() {
   sincronizarAlertaPersistencia();
-  const tarefas = store.listar();
+  const baseTarefas = store.listar();
+  const ordenarPorPrioridade = sortSelect?.value === 'prioridade';
+  const tarefas = ordenarPorPrioridade ? ordenarTarefas(baseTarefas) : baseTarefas;
   emptyState.hidden = tarefas.length > 0;
   if (wipInput) {
     wipInput.value = String(store.limiteWip);
@@ -229,9 +274,16 @@ if (wipInput) {
   wipInput.addEventListener('change', aplicarLimiteWip);
 }
 
+if (sortSelect) {
+  sortSelect.addEventListener('change', render);
+}
+
 form.addEventListener('submit', (event) => {
   event.preventDefault();
-  const tarefa = store.adicionar(input.value);
+  const tarefa = store.adicionar(input.value, {
+    prioridade: prioritySelect?.value,
+    dataVencimento: dueDateInput?.value || null,
+  });
   if (!tarefa) {
     exibirErro(store.ultimoErro || 'Informe um título válido para a tarefa.');
     input.focus();
@@ -240,6 +292,8 @@ form.addEventListener('submit', (event) => {
   limparErro();
   limparAvisoKanban();
   input.value = '';
+  if (prioritySelect) prioritySelect.value = 'media';
+  if (dueDateInput) dueDateInput.value = '';
   input.focus();
   render();
 });
