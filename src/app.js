@@ -3,8 +3,25 @@ import { TodoStore } from './store.js';
 const store = new TodoStore();
 const form = document.querySelector('#todo-form');
 const input = document.querySelector('#todo-input');
+const feedback = document.querySelector('#todo-feedback');
 const list = document.querySelector('#todo-list');
 const emptyState = document.querySelector('#empty-state');
+
+function exibirErro(mensagem) {
+  if (feedback) {
+    feedback.textContent = mensagem;
+    feedback.hidden = false;
+  }
+  input.setAttribute('aria-invalid', 'true');
+}
+
+function limparErro() {
+  if (feedback) {
+    feedback.textContent = '';
+    feedback.hidden = true;
+  }
+  input.removeAttribute('aria-invalid');
+}
 
 function render() {
   const tarefas = store.listar();
@@ -46,10 +63,21 @@ function render() {
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   const tarefa = store.adicionar(input.value);
-  if (!tarefa) return;
+  if (!tarefa) {
+    exibirErro(store.ultimoErro || 'Informe um título válido para a tarefa.');
+    input.focus();
+    return;
+  }
+  limparErro();
   input.value = '';
   input.focus();
   render();
+});
+
+input.addEventListener('input', () => {
+  if (input.getAttribute('aria-invalid') === 'true') {
+    limparErro();
+  }
 });
 
 render();
