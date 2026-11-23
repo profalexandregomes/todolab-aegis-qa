@@ -83,17 +83,17 @@ describe('Aceitação BDD — Issue #5 (Matriz de Prioridade, Vencimento e Orden
 
       seletorPrioridade.value = 'baixa';
       campoData.value = futuro;
-      input.value = 'Tarefa Baixa Futura';
+      input.value = 'Item C';
       form.dispatchEvent({ type: 'submit' });
 
       seletorPrioridade.value = 'media';
       campoData.value = ontem;
-      input.value = 'Tarefa Média Atrasada';
+      input.value = 'Item B';
       form.dispatchEvent({ type: 'submit' });
 
       seletorPrioridade.value = 'alta';
       campoData.value = hoje;
-      input.value = 'Tarefa Alta Hoje';
+      input.value = 'Item A';
       form.dispatchEvent({ type: 'submit' });
 
       const controleOrdenacao = ativarOrdenacaoPrioridade(dom, form);
@@ -104,9 +104,9 @@ describe('Aceitação BDD — Issue #5 (Matriz de Prioridade, Vencimento e Orden
       assert.equal(cartoesTodo.length, 3);
 
       const textosCartoes = cartoesTodo.map((c) => c.textContent);
-      assert.ok(textosCartoes[0].includes('Tarefa Alta Hoje'), '1º cartão em A Fazer deve ser prioridade Alta');
-      assert.ok(textosCartoes[1].includes('Tarefa Média Atrasada'), '2º cartão em A Fazer deve ser prioridade Média');
-      assert.ok(textosCartoes[2].includes('Tarefa Baixa Futura'), '3º cartão em A Fazer deve ser prioridade Baixa');
+      assert.ok(textosCartoes[0].includes('Item A'), '1º cartão em A Fazer deve ser prioridade Alta');
+      assert.ok(textosCartoes[1].includes('Item B'), '2º cartão em A Fazer deve ser prioridade Média');
+      assert.ok(textosCartoes[2].includes('Item C'), '3º cartão em A Fazer deve ser prioridade Baixa');
 
       assert.match(textosCartoes[0].toLowerCase(), /alta/);
       assert.match(textosCartoes[0].toLowerCase(), /vence hoje/);
