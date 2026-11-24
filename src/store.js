@@ -2,7 +2,9 @@ const CHAVE = 'todolab:tarefas';
 const CHAVE_CONFIG = 'todolab:config';
 const STATUS_VALIDOS = new Set(['todo', 'in_progress', 'review', 'done']);
 const PRIORIDADES_VALIDAS = new Set(['alta', 'media', 'baixa']);
+const FILTROS_STATUS_VALIDOS = new Set(['todas', 'ativas', 'concluidas']);
 const PESO_PRIORIDADE = { alta: 0, media: 1, baixa: 2 };
+const LIMITE_TITULO = 200;
 const MS_POR_DIA = 86_400_000;
 let sequenciaId = 0;
 
@@ -180,6 +182,14 @@ function normalizarRegistroArmazenado(item) {
   };
 }
 
+function normalizarTextoBusca(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 function extrairTituloNormalizado(entrada) {
   const bruto = typeof entrada === 'string'
     ? entrada
@@ -196,6 +206,13 @@ function extrairTituloNormalizado(entrada) {
   if (!titulo) {
     return {
       erro: 'O título da tarefa não pode estar vazio nem conter apenas espaços.',
+      titulo: null,
+    };
+  }
+
+  if (titulo.length > LIMITE_TITULO) {
+    return {
+      erro: `O título da tarefa deve ter no máximo ${LIMITE_TITULO} caracteres.`,
       titulo: null,
     };
   }
@@ -226,21 +243,55 @@ export class TodoStore {
     this.ultimoErro = null;
     this.erroPersistencia = null;
     this.persistenciaDisponivel = temInterfaceArmazenamento(this.armazenamento);
-    this.limiteWip = this.carregarLimiteWip(opcoes.limiteWip);
+    this.pilhaUndo = [];
+    const config = this.carregarConfiguracao(opcoes);
+    this.limiteWip = config.limiteWip;
+    this.statusFiltro = config.statusFiltro;
     this.tarefas = this.carregar();
   }
 
-  carregarLimiteWip(padrao = 2) {
-    const limitePadrao = Number.isInteger(padrao) && padrao >= 1 ? padrao : 2;
-    if (!temInterfaceArmazenamento(this.armazenamento)) return limitePadrao;
+  carregarConfiguracao(opcoes = {}) {
+    const limitePadrao = Number.isInteger(opcoes.limiteWip) && opcoes.limiteWip >= 1 ? opcoes.limiteWip : 2;
+    const filtroPadrao = FILTROS_STATUS_VALIDOS.has(opcoes.statusFiltro) ? opcoes.statusFiltro : 'todas';
+    const padrao = { limiteWip: limitePadrao, statusFiltro: filtroPadrao };
+    if (!temInterfaceArmazenamento(this.armazenamento)) return padrao;
     try {
       const bruto = this.armazenamento.getItem(CHAVE_CONFIG);
-      if (!bruto) return limitePadrao;
+      if (!bruto) return padrao;
       const cfg = JSON.parse(bruto);
-      return Number.isInteger(cfg?.limiteWip) && cfg.limiteWip >= 1 ? cfg.limiteWip : limitePadrao;
+      return {
+        limiteWip: Number.isInteger(cfg?.limiteWip) && cfg.limiteWip >= 1 ? cfg.limiteWip : limitePadrao,
+        statusFiltro: FILTROS_STATUS_VALIDOS.has(cfg?.statusFiltro) ? cfg.statusFiltro : filtroPadrao,
+      };
     } catch {
-      return limitePadrao;
+      return padrao;
     }
+  }
+
+  salvarConfiguracao() {
+    if (!temInterfaceArmazenamento(this.armazenamento)) return;
+    try {
+      this.armazenamento.setItem(
+        CHAVE_CONFIG,
+        JSON.stringify({ limiteWip: this.limiteWip, statusFiltro: this.statusFiltro })
+      );
+    } catch (erro) {
+      const diagnostico = classificarErroArmazenamento(erro, 'escrita');
+      this.persistenciaDisponivel = diagnostico.disponivel;
+      this.erroPersistencia = diagnostico.mensagem;
+      this.ultimoErro = diagnostico.mensagem;
+    }
+  }
+
+  registrarSnapshotUndo() {
+    this.pilhaUndo.push(this.tarefas.map((item) => ({ ...item })));
+  }
+
+  definirFiltroStatus(filtro) {
+    if (!FILTROS_STATUS_VALIDOS.has(filtro)) return false;
+    this.statusFiltro = filtro;
+    this.salvarConfiguracao();
+    return true;
   }
 
   carregar() {
@@ -333,6 +384,7 @@ export class TodoStore {
       ? { ...entrada, ...opcoes }
       : opcoes;
 
+    this.registrarSnapshotUndo();
     this.ultimoErro = null;
     const tarefa = criarTarefa(titulo, opcoesCombinadas);
     this.tarefas.push(tarefa);
@@ -344,10 +396,52 @@ export class TodoStore {
     if (id == null || id === '') return;
     const tarefa = this.tarefas.find((item) => item.id === id);
     if (!tarefa) return;
+    this.registrarSnapshotUndo();
     tarefa.concluida = !tarefa.concluida;
     tarefa.status = tarefa.concluida ? 'done' : 'todo';
     tarefa.atualizadaEm = new Date().toISOString();
     this.salvar();
+  }
+
+  editar(id, novoTitulo, camposExtras = {}) {
+    if (id == null || id === '') return null;
+    const tarefa = this.tarefas.find((item) => item.id === id);
+    if (!tarefa) return null;
+
+    if (typeof novoTitulo !== 'string') {
+      this.ultimoErro = 'Informe um título textual válido para a tarefa.';
+      return null;
+    }
+
+    const titulo = novoTitulo.trim();
+    if (!titulo) {
+      this.remover(id);
+      this.ultimoErro = null;
+      return null;
+    }
+
+    if (titulo.length > LIMITE_TITULO) {
+      this.ultimoErro = `O título da tarefa deve ter no máximo ${LIMITE_TITULO} caracteres.`;
+      return null;
+    }
+
+    this.registrarSnapshotUndo();
+    tarefa.titulo = titulo;
+    if (camposExtras && typeof camposExtras === 'object') {
+      if ('prioridade' in camposExtras) {
+        tarefa.prioridade = normalizarPrioridade(camposExtras.prioridade);
+      }
+      if ('dataVencimento' in camposExtras) {
+        tarefa.dataVencimento = normalizarDataVencimento(camposExtras.dataVencimento);
+      }
+      if ('estimativaMin' in camposExtras) {
+        tarefa.estimativaMin = normalizarMinutosNaoNegativos(camposExtras.estimativaMin);
+      }
+    }
+    tarefa.atualizadaEm = new Date().toISOString();
+    this.ultimoErro = null;
+    this.salvar();
+    return tarefa;
   }
 
   moverStatus(id, novoStatus) {
@@ -376,6 +470,7 @@ export class TodoStore {
       }
     }
 
+    this.registrarSnapshotUndo();
     tarefa.status = novoStatus;
     tarefa.concluida = novoStatus === 'done';
     tarefa.atualizadaEm = new Date().toISOString();
@@ -390,16 +485,7 @@ export class TodoStore {
     }
 
     this.limiteWip = n;
-    if (temInterfaceArmazenamento(this.armazenamento)) {
-      try {
-        this.armazenamento.setItem(CHAVE_CONFIG, JSON.stringify({ limiteWip: this.limiteWip }));
-      } catch (erro) {
-        const diagnostico = classificarErroArmazenamento(erro, 'escrita');
-        this.persistenciaDisponivel = diagnostico.disponivel;
-        this.erroPersistencia = diagnostico.mensagem;
-        this.ultimoErro = diagnostico.mensagem;
-      }
-    }
+    this.salvarConfiguracao();
     return { sucesso: true, limiteWip: this.limiteWip };
   }
 
@@ -412,6 +498,7 @@ export class TodoStore {
     const tarefa = this.tarefas.find((item) => item.id === id);
     if (!tarefa) return null;
 
+    this.registrarSnapshotUndo();
     tarefa.esforcoRealMin = normalizarMinutosNaoNegativos(tarefa.esforcoRealMin) + min;
     tarefa.atualizadaEm = new Date().toISOString();
     this.ultimoErro = null;
@@ -423,8 +510,77 @@ export class TodoStore {
     if (id == null || id === '') return false;
     const indice = this.tarefas.findIndex((tarefa) => tarefa.id === id);
     if (indice === -1) return false;
+    this.registrarSnapshotUndo();
     this.tarefas.splice(indice, 1);
     this.salvar();
     return true;
+  }
+
+  limparConcluidas() {
+    const concluidas = this.tarefas.filter((item) => item.concluida);
+    if (concluidas.length === 0) return 0;
+    this.registrarSnapshotUndo();
+    this.tarefas = this.tarefas.filter((item) => !item.concluida);
+    this.ultimoErro = null;
+    this.salvar();
+    return concluidas.length;
+  }
+
+  alternarTodas(concluir) {
+    if (this.tarefas.length === 0) return false;
+    const marcar = typeof concluir === 'boolean'
+      ? concluir
+      : this.tarefas.some((item) => !item.concluida);
+    const precisaMudar = this.tarefas.some((item) => item.concluida !== marcar);
+    if (!precisaMudar) return false;
+
+    this.registrarSnapshotUndo();
+    const agora = new Date().toISOString();
+    for (const tarefa of this.tarefas) {
+      tarefa.concluida = marcar;
+      tarefa.status = marcar ? 'done' : 'todo';
+      tarefa.atualizadaEm = agora;
+    }
+    this.ultimoErro = null;
+    this.salvar();
+    return true;
+  }
+
+  desfazer() {
+    if (this.pilhaUndo.length === 0) return false;
+    const snapshot = this.pilhaUndo.pop();
+    this.tarefas = snapshot.map((item) => ({ ...item }));
+    this.ultimoErro = null;
+    this.salvar();
+    return true;
+  }
+
+  contarPendentes() {
+    return this.tarefas.filter((item) => !item.concluida).length;
+  }
+
+  formatarContadorPendentes() {
+    const pendentes = this.contarPendentes();
+    return pendentes === 1 ? '1 item restante' : `${pendentes} itens restantes`;
+  }
+
+  filtrar({
+    statusFiltro = 'todas',
+    prioridade = 'todas',
+    busca = '',
+    colunaKanban = 'todas',
+    ordenar = false,
+  } = {}) {
+    const termo = normalizarTextoBusca(busca);
+    const filtradas = this.tarefas.filter((tarefa) => {
+      if (statusFiltro === 'ativas' && tarefa.concluida) return false;
+      if (statusFiltro === 'concluidas' && !tarefa.concluida) return false;
+      if (PRIORIDADES_VALIDAS.has(prioridade) && tarefa.prioridade !== prioridade) return false;
+      if (STATUS_VALIDOS.has(colunaKanban) && tarefa.status !== colunaKanban) return false;
+      if (termo && !normalizarTextoBusca(tarefa.titulo).includes(termo)) return false;
+      return true;
+    });
+
+    return ordenar ? ordenarTarefas(filtradas) : filtradas.map((item) => ({ ...item }));
   }
 }

@@ -1,4 +1,4 @@
-import { TodoStore, classificarVencimento, ordenarTarefas } from './store.js';
+import { TodoStore, classificarVencimento } from './store.js';
 
 const COLUNAS = [
   { status: 'todo', rotulo: 'A Fazer' },
@@ -22,6 +22,8 @@ const ROTULOS_VENCIMENTO = {
   sem_prazo: '',
 };
 
+const LIMITE_TITULO = 200;
+const LIMITE_AVISO_CONTADOR = 180;
 const FOCO_MINUTOS = 25;
 const PAUSA_MINUTOS = 5;
 const FOCO_SEGUNDOS = FOCO_MINUTOS * 60;
@@ -34,11 +36,20 @@ const prioritySelect = document.querySelector('#todo-priority');
 const dueDateInput = document.querySelector('#todo-due-date');
 const estimateInput = document.querySelector('#todo-estimate');
 const feedback = document.querySelector('#todo-feedback');
+const charCounter = document.querySelector('#title-char-counter');
 const storageAlert = document.querySelector('#storage-alert');
 const kanbanAlert = document.querySelector('#kanban-alert');
 const wipForm = document.querySelector('#wip-form');
 const wipInput = document.querySelector('#wip-limit-input');
+const searchInput = document.querySelector('#search-input');
+const filterStatusSelect = document.querySelector('#filter-status');
+const filterPrioritySelect = document.querySelector('#filter-priority');
 const sortSelect = document.querySelector('#sort-select');
+const pendingCounter = document.querySelector('#pending-counter');
+const toggleAllBtn = document.querySelector('#toggle-all-btn');
+const clearCompletedBtn = document.querySelector('#clear-completed-btn');
+const undoBtn = document.querySelector('#undo-btn');
+const filterEmptyState = document.querySelector('#filter-empty-state');
 const pomodoroTimer = document.querySelector('#pomodoro-timer');
 const pomodoroMode = document.querySelector('#pomodoro-mode');
 const pomodoroTaskSelect = document.querySelector('#pomodoro-task');
@@ -49,6 +60,7 @@ const pomodoroCompleteBtn = document.querySelector('#pomodoro-complete');
 const emptyState = document.querySelector('#empty-state');
 
 let idArrastado = null;
+let editingTaskId = null;
 let modoPomodoro = 'foco';
 let segundosRestantes = FOCO_SEGUNDOS;
 let intervaloPomodoro = null;
@@ -170,6 +182,23 @@ function limparErro() {
   input.removeAttribute('aria-invalid');
 }
 
+function atualizarContadorCaracteres() {
+  if (!charCounter) return;
+  const tamanho = input.value.trim().length;
+  if (tamanho <= LIMITE_AVISO_CONTADOR) {
+    charCounter.textContent = '';
+    charCounter.hidden = true;
+    charCounter.classList.remove('char-counter--over');
+    return;
+  }
+  const restantes = LIMITE_TITULO - tamanho;
+  charCounter.textContent = restantes >= 0
+    ? `${restantes} caracteres restantes`
+    : `Excedido em ${Math.abs(restantes)} caracteres (máximo ${LIMITE_TITULO})`;
+  charCounter.hidden = false;
+  charCounter.classList.toggle('char-counter--over', restantes < 0);
+}
+
 function exibirAvisoKanban(mensagem) {
   if (!kanbanAlert) return;
   kanbanAlert.textContent = mensagem;
@@ -207,12 +236,33 @@ function formatarDesvioEsforco(estimativaMin, esforcoRealMin) {
   return 'no estimado';
 }
 
+function confirmarEdicaoInline(id, novoTexto) {
+  const aparado = String(novoTexto ?? '').trim();
+  if (!aparado) {
+    store.editar(id, '');
+    editingTaskId = null;
+    limparAvisoKanban();
+    render();
+    return;
+  }
+
+  const atualizada = store.editar(id, aparado);
+  if (!atualizada) {
+    exibirAvisoKanban(store.ultimoErro || `O título deve ter no máximo ${LIMITE_TITULO} caracteres.`);
+    return;
+  }
+
+  editingTaskId = null;
+  limparAvisoKanban();
+  render();
+}
+
 function criarCartaoTarefa(tarefa) {
   const item = document.createElement('li');
   item.className = `todo-card ${tarefa.concluida ? 'todo--done' : ''}`;
   item.dataset.id = tarefa.id;
-  item.draggable = true;
-  item.setAttribute('draggable', 'true');
+  item.draggable = editingTaskId !== tarefa.id;
+  item.setAttribute('draggable', String(editingTaskId !== tarefa.id));
 
   item.addEventListener('dragstart', (event) => {
     idArrastado = tarefa.id;
@@ -241,9 +291,60 @@ function criarCartaoTarefa(tarefa) {
     render();
   });
 
-  const title = document.createElement('span');
-  title.className = 'todo-card__title';
-  title.textContent = tarefa.titulo;
+  let titleNode;
+  let editInputRef = null;
+  if (editingTaskId === tarefa.id) {
+    const editInput = document.createElement('input');
+    editInput.type = 'text';
+    editInput.className = 'todo-card__edit-input';
+    editInput.value = tarefa.titulo;
+    editInput.setAttribute('aria-label', `Editar título de ${tarefa.titulo}`);
+
+    let finalizou = false;
+    editInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        finalizou = true;
+        editingTaskId = null;
+        limparAvisoKanban();
+        render();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        finalizou = true;
+        confirmarEdicaoInline(tarefa.id, editInput.value);
+      }
+    });
+
+    editInput.addEventListener('blur', () => {
+      if (finalizou) return;
+      finalizou = true;
+      confirmarEdicaoInline(tarefa.id, editInput.value);
+    });
+
+    titleNode = editInput;
+    editInputRef = editInput;
+  } else {
+    const title = document.createElement('span');
+    title.className = 'todo-card__title';
+    title.textContent = tarefa.titulo;
+    title.addEventListener('dblclick', () => {
+      editingTaskId = tarefa.id;
+      render();
+    });
+    titleNode = title;
+  }
+
+  const actionsTop = document.createElement('div');
+  actionsTop.className = 'todo-card__top-actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'edit-btn';
+  editBtn.textContent = 'Editar';
+  editBtn.setAttribute('aria-label', `Editar ${tarefa.titulo}`);
+  editBtn.addEventListener('click', () => {
+    editingTaskId = tarefa.id;
+    render();
+  });
 
   const remove = document.createElement('button');
   remove.type = 'button';
@@ -256,11 +357,15 @@ function criarCartaoTarefa(tarefa) {
       pausarPomodoro();
       pomodoroTaskId = '';
     }
+    if (editingTaskId === tarefa.id) {
+      editingTaskId = null;
+    }
     store.remover(tarefa.id);
     render();
   });
 
-  topRow.append(checkbox, title, remove);
+  actionsTop.append(editBtn, remove);
+  topRow.append(checkbox, titleNode, actionsTop);
 
   const metaRow = document.createElement('div');
   metaRow.className = 'todo-card__meta';
@@ -336,7 +441,7 @@ function criarCartaoTarefa(tarefa) {
 
   controlsRow.append(addEffortBtn, moveSelect);
   item.append(topRow, metaRow, effortRow, controlsRow);
-  return item;
+  return { item, editInputRef };
 }
 
 function render() {
@@ -345,30 +450,71 @@ function render() {
   sincronizarSeletorPomodoro(baseTarefas);
   atualizarVisorPomodoro();
 
-  const ordenarPorPrioridade = sortSelect?.value === 'prioridade';
-  const tarefas = ordenarPorPrioridade ? ordenarTarefas(baseTarefas) : baseTarefas;
-  emptyState.hidden = tarefas.length > 0;
+  if (filterStatusSelect) {
+    filterStatusSelect.value = store.statusFiltro;
+  }
+
+  if (pendingCounter) {
+    pendingCounter.textContent = store.formatarContadorPendentes();
+  }
+
+  const temConcluidas = baseTarefas.some((tarefa) => tarefa.concluida);
+  const temPendentes = baseTarefas.some((tarefa) => !tarefa.concluida);
+  if (clearCompletedBtn) {
+    clearCompletedBtn.hidden = !temConcluidas;
+  }
+  if (toggleAllBtn) {
+    toggleAllBtn.textContent = baseTarefas.length > 0 && !temPendentes
+      ? 'Desmarcar todas'
+      : 'Marcar todas';
+  }
+  if (undoBtn) {
+    undoBtn.disabled = store.pilhaUndo.length === 0;
+  }
+
+  const tarefasVisiveis = store.filtrar({
+    statusFiltro: store.statusFiltro,
+    prioridade: filterPrioritySelect?.value || 'todas',
+    busca: searchInput?.value || '',
+    ordenar: sortSelect?.value === 'prioridade',
+  });
+
+  emptyState.hidden = baseTarefas.length > 0;
+  if (filterEmptyState) {
+    filterEmptyState.hidden = !(baseTarefas.length > 0 && tarefasVisiveis.length === 0);
+  }
   if (wipInput) {
     wipInput.value = String(store.limiteWip);
   }
 
+  let inputEdicaoFocar = null;
   for (const { status } of COLUNAS) {
     const listaColuna = document.querySelector(`#list-${status}`);
     const contadorColuna = document.querySelector(`#count-${status}`);
-    const tarefasDaColuna = tarefas.filter((tarefa) => tarefa.status === status);
+    const tarefasDaColuna = tarefasVisiveis.filter((tarefa) => tarefa.status === status);
+    const totalEmProgresso = baseTarefas.filter((tarefa) => tarefa.status === 'in_progress').length;
 
     if (contadorColuna) {
       contadorColuna.textContent = status === 'in_progress'
-        ? `${tarefasDaColuna.length} / ${store.limiteWip}`
+        ? `${totalEmProgresso} / ${store.limiteWip}`
         : String(tarefasDaColuna.length);
     }
 
     if (listaColuna) {
       listaColuna.replaceChildren();
       for (const tarefa of tarefasDaColuna) {
-        listaColuna.append(criarCartaoTarefa(tarefa));
+        const { item, editInputRef } = criarCartaoTarefa(tarefa);
+        listaColuna.append(item);
+        if (editInputRef) {
+          inputEdicaoFocar = editInputRef;
+        }
       }
     }
+  }
+
+  if (inputEdicaoFocar) {
+    inputEdicaoFocar.focus();
+    inputEdicaoFocar.select?.();
   }
 }
 
@@ -417,12 +563,41 @@ if (wipForm) {
   });
 }
 
-if (wipInput) {
-  wipInput.addEventListener('change', aplicarLimiteWip);
+if (wipInput) wipInput.addEventListener('change', aplicarLimiteWip);
+if (sortSelect) sortSelect.addEventListener('change', render);
+if (filterPrioritySelect) filterPrioritySelect.addEventListener('change', render);
+if (searchInput) searchInput.addEventListener('input', render);
+
+if (filterStatusSelect) {
+  filterStatusSelect.addEventListener('change', () => {
+    store.definirFiltroStatus(filterStatusSelect.value);
+    render();
+  });
 }
 
-if (sortSelect) {
-  sortSelect.addEventListener('change', render);
+if (toggleAllBtn) {
+  toggleAllBtn.addEventListener('click', () => {
+    const marcar = store.listar().some((tarefa) => !tarefa.concluida);
+    store.alternarTodas(marcar);
+    limparAvisoKanban();
+    render();
+  });
+}
+
+if (clearCompletedBtn) {
+  clearCompletedBtn.addEventListener('click', () => {
+    store.limparConcluidas();
+    limparAvisoKanban();
+    render();
+  });
+}
+
+if (undoBtn) {
+  undoBtn.addEventListener('click', () => {
+    store.desfazer();
+    limparAvisoKanban();
+    render();
+  });
 }
 
 if (pomodoroTaskSelect) {
@@ -452,6 +627,7 @@ form.addEventListener('submit', (event) => {
   limparErro();
   limparAvisoKanban();
   input.value = '';
+  atualizarContadorCaracteres();
   if (prioritySelect) prioritySelect.value = 'media';
   if (dueDateInput) dueDateInput.value = '';
   if (estimateInput) estimateInput.value = '';
@@ -460,6 +636,7 @@ form.addEventListener('submit', (event) => {
 });
 
 input.addEventListener('input', () => {
+  atualizarContadorCaracteres();
   if (input.getAttribute('aria-invalid') === 'true') {
     limparErro();
   }

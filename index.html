@@ -65,6 +65,7 @@
           <button type="submit">Adicionar</button>
         </form>
         <p id="todo-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+        <p id="title-char-counter" class="char-counter" hidden></p>
 
         <section id="pomodoro-panel" class="pomodoro-panel" aria-label="Cronômetro de Foco (Pomodoro)">
           <div class="pomodoro-panel__info">
@@ -102,12 +103,36 @@
             />
             <button type="submit">Aplicar</button>
           </form>
-          <div class="sort-control">
-            <label for="sort-select">Ordenação</label>
+          <div class="toolbar-filters">
+            <label class="sr-only" for="search-input">Buscar tarefas pelo título</label>
+            <input
+              id="search-input"
+              name="busca"
+              type="search"
+              placeholder="Buscar tarefa..."
+              aria-label="Buscar tarefas pelo título"
+            />
+            <select id="filter-status" name="statusFiltro" aria-label="Filtrar por situação">
+              <option value="todas" selected>Todas</option>
+              <option value="ativas">Ativas</option>
+              <option value="concluidas">Concluídas</option>
+            </select>
             <select id="sort-select" name="ordenacao" aria-label="Ordenação das tarefas">
               <option value="padrao" selected>Ordem de criação</option>
               <option value="prioridade">Ordenar por prioridade</option>
             </select>
+            <select id="filter-priority" name="prioridadeFiltro" aria-label="Filtrar por prioridade">
+              <option value="todas" selected>Todas as prioridades</option>
+              <option value="alta">Alta</option>
+              <option value="media">Média</option>
+              <option value="baixa">Baixa</option>
+            </select>
+          </div>
+          <div class="toolbar-actions">
+            <span id="pending-counter" class="pending-counter">0 itens restantes</span>
+            <button id="toggle-all-btn" type="button">Marcar todas</button>
+            <button id="clear-completed-btn" type="button" hidden>Limpar concluídas</button>
+            <button id="undo-btn" type="button" disabled>Desfazer (Undo)</button>
           </div>
         </div>
 
@@ -146,6 +171,8 @@
             <ul id="list-done" class="kanban-list"></ul>
           </section>
         </div>
+
+        <p id="filter-empty-state" class="filter-empty-state" hidden>Nenhuma tarefa encontrada para o filtro ou busca aplicada.</p>
 
         <footer class="workbench__footer">
           <p id="empty-state">Nenhuma tarefa ainda. Comece com um critério claro.</p>
