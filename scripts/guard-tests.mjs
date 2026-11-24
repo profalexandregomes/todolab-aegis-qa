@@ -1,6 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
+function ehCommitDeMerge() {
+  const res = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD^2'], { encoding: 'utf8' });
+  return res.status === 0;
+}
+
+function branchAtual() {
+  const res = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' });
+  return res.status === 0 ? res.stdout.trim() : '';
+}
+
 function listarArquivosAlterados() {
   const baseRef = process.env.GITHUB_BASE_REF;
   const candidatos = [];
@@ -46,6 +56,13 @@ function possuiJustificativaTeste() {
     return false;
   }
   return false;
+}
+
+const emPullRequest = process.env.GITHUB_EVENT_NAME === 'pull_request' || Boolean(process.env.GITHUB_BASE_REF);
+
+if (!emPullRequest && (ehCommitDeMerge() || branchAtual() === 'main')) {
+  console.log('Guard-Tests aprovado (integração já validada em PR na branch principal/merge).');
+  process.exit(0);
 }
 
 const alterados = listarArquivosAlterados();

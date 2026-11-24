@@ -31,4 +31,5 @@ jobs:
       - name: Coverage Gate (>= 60% em src/)
         run: npm run test:coverage:gate
       - name: Guard Tests
+        if: github.event_name == 'pull_request'
         run: npm run guard:tests
