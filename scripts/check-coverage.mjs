@@ -19,32 +19,45 @@ const saidaCompleta = `${execucao.stdout || ''}\n${execucao.stderr || ''}`;
 const linhas = saidaCompleta.split(/\r?\n/);
 
 let emSrc = false;
-const metricasSrc = [];
+const amostrasPorArquivo = new Map();
 
 for (const linha of linhas) {
-  if (/\bsrc\s*\|/.test(linha)) {
+  if (/^[ℹ#\s]*src\s*\|/.test(linha)) {
     emSrc = true;
     continue;
   }
   if (emSrc && /\b(tests|scripts|all files)\b/.test(linha)) {
     emSrc = false;
   }
-  if (!emSrc) continue;
 
-  const match = /\s+([a-zA-Z0-9_.-]+\.js)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)/.exec(linha);
-  if (match) {
-    metricasSrc.push({
-      arquivo: match[1],
-      linhas: Number(match[2]),
-      ramos: Number(match[3]),
-      funcoes: Number(match[4]),
-    });
+  const matchFlat = /(?:^|[ℹ#\s])src[/\\]([a-zA-Z0-9_.-]+\.js)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)/.exec(linha);
+  const matchGrouped = emSrc
+    ? /\s+([a-zA-Z0-9_.-]+\.js)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)/.exec(linha)
+    : null;
+  const match = matchFlat || matchGrouped;
+  if (!match) continue;
+
+  const arquivo = match[1];
+  const entrada = {
+    linhas: Number(match[2]),
+    ramos: Number(match[3]),
+    funcoes: Number(match[4]),
+  };
+  if (!amostrasPorArquivo.has(arquivo)) {
+    amostrasPorArquivo.set(arquivo, []);
   }
+  amostrasPorArquivo.get(arquivo).push(entrada);
 }
 
-if (metricasSrc.length === 0) {
+if (amostrasPorArquivo.size === 0) {
   console.error('Coverage Gate falhou: não foi possível extrair métricas de cobertura de src/.');
   process.exit(1);
+}
+
+const metricasSrc = [];
+for (const [arquivo, amostras] of amostrasPorArquivo.entries()) {
+  const mediaArquivo = amostras.reduce((acc, item) => acc + item.linhas, 0) / amostras.length;
+  metricasSrc.push({ arquivo, linhas: mediaArquivo });
 }
 
 const mediaLinhas = metricasSrc.reduce((acc, m) => acc + m.linhas, 0) / metricasSrc.length;
