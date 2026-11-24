@@ -53,3 +53,13 @@ Marque somente o que puder ser demonstrado na própria Issue.
 ## Nota sobre CODEOWNERS
 
 `CODEOWNERS` documenta quem é responsável por revisar caminhos do repositório. Ele **não cria bloqueio por si só**: a exigência automática de aprovação depende de proteção de branch configurada no GitHub. Essa proteção está prevista para a Aula 11; não deve ser declarada como ativa na Aula 05.
+
+---
+
+## Registro Consolidado de Revisão Técnica — Esquadrão Aegis QA (`v1.2.0`)
+
+- **Equipe:** Esquadrão Aegis QA (`@agbarbosa` / `@profalexandregomes`)
+- **Revisor e Homologador:** Prof. Alexandre Gomes (`@profalexandregomes`)
+- **Decisão consolidada:** `[x] aprovada para desenvolvimento e homologada` (Issues `#1` a `#8` com critérios *BDD* — *Behavior-Driven Development*, casos de borda, atributo *ISO 9126*, estimativa e portão *DoR* — *Definition of Ready* verificados)
+- **Documentos complementares:** [`plano-qualidade-iso9126.md`](plano-qualidade-iso9126.md) · [`matriz-rastreabilidade-v1.2.0.md`](matriz-rastreabilidade-v1.2.0.md)
+
