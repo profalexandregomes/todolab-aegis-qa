@@ -396,7 +396,7 @@ function criarTarefa(titulo, opcoes = {}) {
     prioridade: normalizarPrioridade(opcoes.prioridade),
     dataVencimento: normalizarDataVencimento(opcoes.dataVencimento),
     estimativaMin: normalizarMinutosNaoNegativos(opcoes.estimativaMin),
-    esforcoRealMin: 0,
+    esforcoRealMin: normalizarMinutosNaoNegativos(opcoes.esforcoRealMin),
     criadaEm: agora,
     atualizadaEm: agora,
   };
@@ -601,6 +601,9 @@ export class TodoStore {
       }
       if ('estimativaMin' in camposExtras) {
         tarefa.estimativaMin = normalizarMinutosNaoNegativos(camposExtras.estimativaMin);
+      }
+      if ('esforcoRealMin' in camposExtras) {
+        tarefa.esforcoRealMin = normalizarMinutosNaoNegativos(camposExtras.esforcoRealMin);
       }
     }
     tarefa.atualizadaEm = new Date().toISOString();

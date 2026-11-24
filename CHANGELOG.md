@@ -4,6 +4,18 @@ Todas as mudanças notáveis do produto **TodoLab** são documentadas neste arqu
 
 ---
 
+## [1.2.1] — 2026-11-24 (Hotfix de UX: Cartão Kanban em Largura Total e Edição Multi-Campo)
+
+### Corrigido
+- **Issue #18 (Layout *Kanban*, Seletor *CSS* de *Checkbox* e Edição Multi-Campo):**
+  - Reestruturado o cartão *Kanban* (`.todo-card`) em `src/app.js` e `src/styles.css` separando `.todo-card__header` (`.todo-card__header-left` com *checkbox*, selo de prioridade e selo de prazo + `.todo-card__top-actions` com `Editar` e `Remover`) de `.todo-card__body`, garantindo que o título (`.todo-card__title`) ocupe 100% da largura útil do cartão sem espremimento lateral.
+  - Corrigido o seletor *CSS* (*Cascading Style Sheets* — Folhas de Estilo em Cascata) que aplicava `17×17 px` a qualquer `<input>` dentro de `.todo-card__main` e `.todo`, restringindo-o exclusivamente a `.todo-card input[type="checkbox"]` e `.todo input[type="checkbox"]`.
+  - Substituído o fechamento prematuro por *blur* (perda de foco) por painel de edição multi-campo (`.todo-card__edit-panel`) permitindo editar título, prioridade (`.todo-card__edit-priority`), prazo (`.todo-card__edit-date`), estimativa em minutos (`.todo-card__edit-estimate`) e esforço real em minutos (`.todo-card__edit-real`), com botões `Salvar` / `Cancelar` e atalhos `Enter` / `Escape`.
+  - Estendido `TodoStore.editar()` e `criarTarefa()` em `src/store.js` para suportar e sanear `esforcoRealMin`, preservando `status`, `concluida` e reversão completa em 1 passo via `desfazer()`.
+  - Atualizada a marca de compilação em `index.html` para `build 1.2.1 · Aegis QA` e registrado o diálogo de implementação em `docs/prompts/ISSUE-18.md`.
+
+---
+
 ## [1.2.0] — 2026-11-23 (Sprint 03: Produtividade, Telemetria QA e Portabilidade)
 
 *Sprint* (ciclo iterativo curto de desenvolvimento) dedicada à consolidação funcional, qualidade de caixa-preta, telemetria *QA* (*Quality Assurance* — Garantia da Qualidade) e endurecimento da esteira *CI/CD* (*Continuous Integration / Continuous Delivery* — Integração Contínua / Entrega Contínua).
