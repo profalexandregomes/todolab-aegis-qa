@@ -241,7 +241,7 @@ function formatarDesvioEsforco(estimativaMin, esforcoRealMin) {
   return 'no estimado';
 }
 
-function confirmarEdicaoInline(id, novoTexto) {
+function confirmarEdicaoInline(id, novoTexto, camposExtras = {}) {
   const aparado = String(novoTexto ?? '').trim();
   if (!aparado) {
     store.editar(id, '');
@@ -251,7 +251,7 @@ function confirmarEdicaoInline(id, novoTexto) {
     return;
   }
 
-  const atualizada = store.editar(id, aparado);
+  const atualizada = store.editar(id, aparado, camposExtras);
   if (!atualizada) {
     exibirAvisoKanban(store.ultimoErro || `O título deve ter no máximo ${LIMITE_TITULO} caracteres.`);
     return;
@@ -262,12 +262,132 @@ function confirmarEdicaoInline(id, novoTexto) {
   render();
 }
 
+function criarCampoEdicao(rotulo, controle) {
+  const field = document.createElement('label');
+  field.className = 'todo-card__edit-field';
+  const label = document.createElement('span');
+  label.className = 'todo-card__edit-label';
+  label.textContent = rotulo;
+  field.append(label, controle);
+  return field;
+}
+
+function criarInputNumeroEdicao(classe, valor, ariaLabel) {
+  const inputNum = document.createElement('input');
+  inputNum.type = 'number';
+  inputNum.className = classe;
+  inputNum.setAttribute('min', '0');
+  inputNum.setAttribute('step', '5');
+  inputNum.value = String(valor ?? 0);
+  inputNum.setAttribute('aria-label', ariaLabel);
+  return inputNum;
+}
+
+function criarPainelEdicao(tarefa, prioridade) {
+  const editPanel = document.createElement('div');
+  editPanel.className = 'todo-card__edit-panel';
+
+  const editInput = document.createElement('input');
+  editInput.type = 'text';
+  editInput.className = 'todo-card__edit-input';
+  editInput.value = tarefa.titulo;
+  editInput.setAttribute('maxlength', String(LIMITE_TITULO));
+  editInput.setAttribute('aria-label', `Editar título de ${tarefa.titulo}`);
+
+  const editPriority = document.createElement('select');
+  editPriority.className = 'todo-card__edit-priority';
+  editPriority.setAttribute('aria-label', `Prioridade de ${tarefa.titulo}`);
+  for (const [valor, rotulo] of Object.entries(ROTULOS_PRIORIDADE)) {
+    const opt = document.createElement('option');
+    opt.value = valor;
+    opt.textContent = rotulo;
+    editPriority.append(opt);
+  }
+  editPriority.value = prioridade;
+
+  const editDate = document.createElement('input');
+  editDate.type = 'date';
+  editDate.className = 'todo-card__edit-date';
+  editDate.value = tarefa.dataVencimento || '';
+  editDate.setAttribute('aria-label', `Prazo de ${tarefa.titulo}`);
+
+  const editEstimate = criarInputNumeroEdicao(
+    'todo-card__edit-estimate',
+    tarefa.estimativaMin,
+    `Estimativa em minutos de ${tarefa.titulo}`
+  );
+  const editReal = criarInputNumeroEdicao(
+    'todo-card__edit-real',
+    tarefa.esforcoRealMin,
+    `Esforço real em minutos de ${tarefa.titulo}`
+  );
+
+  const editGrid = document.createElement('div');
+  editGrid.className = 'todo-card__edit-grid';
+  editGrid.append(
+    criarCampoEdicao('Prioridade', editPriority),
+    criarCampoEdicao('Prazo', editDate),
+    criarCampoEdicao('Estimativa (min)', editEstimate),
+    criarCampoEdicao('Esforço Real (min)', editReal)
+  );
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'save-edit-btn';
+  saveBtn.textContent = 'Salvar';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'cancel-edit-btn';
+  cancelBtn.textContent = 'Cancelar';
+
+  const editActions = document.createElement('div');
+  editActions.className = 'todo-card__edit-actions';
+  editActions.append(saveBtn, cancelBtn);
+
+  const lerNumero = (el) => (el.value.trim() === '' ? 0 : Number(el.value));
+  const salvarEdicao = () => {
+    const est = lerNumero(editEstimate);
+    const real = lerNumero(editReal);
+    confirmarEdicaoInline(tarefa.id, editInput.value, {
+      prioridade: editPriority.value,
+      dataVencimento: editDate.value || null,
+      estimativaMin: Number.isFinite(est) ? est : 0,
+      esforcoRealMin: Number.isFinite(real) ? real : 0,
+    });
+  };
+  const cancelarEdicao = () => {
+    editingTaskId = null;
+    limparAvisoKanban();
+    render();
+  };
+  const aoPressionarTecla = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault?.();
+      cancelarEdicao();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      salvarEdicao();
+    }
+  };
+
+  for (const campo of [editInput, editPriority, editDate, editEstimate, editReal]) {
+    campo.addEventListener('keydown', aoPressionarTecla);
+  }
+  saveBtn.addEventListener('click', salvarEdicao);
+  cancelBtn.addEventListener('click', cancelarEdicao);
+  editPanel.append(editInput, editGrid, editActions);
+
+  return { editPanel, editInput };
+}
+
 function criarCartaoTarefa(tarefa) {
+  const emEdicao = editingTaskId === tarefa.id;
   const item = document.createElement('li');
   item.className = `todo-card ${tarefa.concluida ? 'todo--done' : ''}`;
   item.dataset.id = tarefa.id;
-  item.draggable = editingTaskId !== tarefa.id;
-  item.setAttribute('draggable', String(editingTaskId !== tarefa.id));
+  item.draggable = !emEdicao;
+  item.setAttribute('draggable', String(!emEdicao));
 
   item.addEventListener('dragstart', (event) => {
     idArrastado = tarefa.id;
@@ -283,8 +403,11 @@ function criarCartaoTarefa(tarefa) {
     item.classList.remove('todo-card--dragging');
   });
 
-  const topRow = document.createElement('div');
-  topRow.className = 'todo-card__main';
+  const header = document.createElement('div');
+  header.className = 'todo-card__header';
+
+  const headerLeft = document.createElement('div');
+  headerLeft.className = 'todo-card__header-left';
 
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
@@ -295,61 +418,38 @@ function criarCartaoTarefa(tarefa) {
     store.alternar(tarefa.id);
     render();
   });
+  headerLeft.append(checkbox);
 
-  let titleNode;
-  let editInputRef = null;
-  if (editingTaskId === tarefa.id) {
-    const editInput = document.createElement('input');
-    editInput.type = 'text';
-    editInput.className = 'todo-card__edit-input';
-    editInput.value = tarefa.titulo;
-    editInput.setAttribute('aria-label', `Editar título de ${tarefa.titulo}`);
+  const prioridade = tarefa.prioridade || 'media';
+  const badgePrioridade = document.createElement('span');
+  badgePrioridade.className = `badge badge--prio-${prioridade}`;
+  badgePrioridade.textContent = ROTULOS_PRIORIDADE[prioridade] || 'Média';
+  headerLeft.append(badgePrioridade);
 
-    let finalizou = false;
-    editInput.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        finalizou = true;
-        editingTaskId = null;
-        limparAvisoKanban();
-        render();
-      } else if (event.key === 'Enter') {
-        event.preventDefault();
-        finalizou = true;
-        confirmarEdicaoInline(tarefa.id, editInput.value);
-      }
-    });
-
-    editInput.addEventListener('blur', () => {
-      if (finalizou) return;
-      finalizou = true;
-      confirmarEdicaoInline(tarefa.id, editInput.value);
-    });
-
-    titleNode = editInput;
-    editInputRef = editInput;
-  } else {
-    const title = document.createElement('span');
-    title.className = 'todo-card__title';
-    title.textContent = tarefa.titulo;
-    title.addEventListener('dblclick', () => {
-      editingTaskId = tarefa.id;
-      render();
-    });
-    titleNode = title;
+  const statusPrazo = classificarVencimento(tarefa);
+  const rotuloPrazo = ROTULOS_VENCIMENTO[statusPrazo];
+  if (rotuloPrazo) {
+    const badgePrazo = document.createElement('span');
+    badgePrazo.className = `badge badge--due-${statusPrazo}`;
+    badgePrazo.textContent = rotuloPrazo;
+    headerLeft.append(badgePrazo);
   }
 
   const actionsTop = document.createElement('div');
   actionsTop.className = 'todo-card__top-actions';
 
-  const editBtn = document.createElement('button');
-  editBtn.type = 'button';
-  editBtn.className = 'edit-btn';
-  editBtn.textContent = 'Editar';
-  editBtn.setAttribute('aria-label', `Editar ${tarefa.titulo}`);
-  editBtn.addEventListener('click', () => {
-    editingTaskId = tarefa.id;
-    render();
-  });
+  if (!emEdicao) {
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'edit-btn';
+    editBtn.textContent = 'Editar';
+    editBtn.setAttribute('aria-label', `Editar ${tarefa.titulo}`);
+    editBtn.addEventListener('click', () => {
+      editingTaskId = tarefa.id;
+      render();
+    });
+    actionsTop.append(editBtn);
+  }
 
   const remove = document.createElement('button');
   remove.type = 'button';
@@ -369,32 +469,33 @@ function criarCartaoTarefa(tarefa) {
     render();
   });
 
-  actionsTop.append(editBtn, remove);
-  topRow.append(checkbox, titleNode, actionsTop);
+  actionsTop.append(remove);
+  header.append(headerLeft, actionsTop);
 
-  const metaRow = document.createElement('div');
-  metaRow.className = 'todo-card__meta';
+  const body = document.createElement('div');
+  body.className = 'todo-card__body';
 
-  const prioridade = tarefa.prioridade || 'media';
-  const badgePrioridade = document.createElement('span');
-  badgePrioridade.className = `badge badge--prio-${prioridade}`;
-  badgePrioridade.textContent = ROTULOS_PRIORIDADE[prioridade] || 'Média';
-  metaRow.append(badgePrioridade);
+  let editInputRef = null;
+  if (emEdicao) {
+    const { editPanel, editInput } = criarPainelEdicao(tarefa, prioridade);
+    body.append(editPanel);
+    editInputRef = editInput;
+  } else {
+    const title = document.createElement('span');
+    title.className = 'todo-card__title';
+    title.textContent = tarefa.titulo;
+    title.addEventListener('dblclick', () => {
+      editingTaskId = tarefa.id;
+      render();
+    });
+    body.append(title);
 
-  const statusPrazo = classificarVencimento(tarefa);
-  const rotuloPrazo = ROTULOS_VENCIMENTO[statusPrazo];
-  if (rotuloPrazo) {
-    const badgePrazo = document.createElement('span');
-    badgePrazo.className = `badge badge--due-${statusPrazo}`;
-    badgePrazo.textContent = rotuloPrazo;
-    metaRow.append(badgePrazo);
-  }
-
-  if (tarefa.dataVencimento) {
-    const dataTexto = document.createElement('span');
-    dataTexto.className = 'todo-card__date';
-    dataTexto.textContent = tarefa.dataVencimento;
-    metaRow.append(dataTexto);
+    if (tarefa.dataVencimento) {
+      const dataTexto = document.createElement('span');
+      dataTexto.className = 'todo-card__date';
+      dataTexto.textContent = tarefa.dataVencimento;
+      body.append(dataTexto);
+    }
   }
 
   const effortRow = document.createElement('div');
@@ -445,7 +546,7 @@ function criarCartaoTarefa(tarefa) {
   });
 
   controlsRow.append(addEffortBtn, moveSelect);
-  item.append(topRow, metaRow, effortRow, controlsRow);
+  item.append(header, body, effortRow, controlsRow);
   return { item, editInputRef };
 }
 

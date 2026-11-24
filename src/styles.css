@@ -337,26 +337,130 @@ input, button, select { font: inherit; }
   animation: arrive .2s ease-out both;
 }
 .todo-card--dragging { opacity: .55; }
-.todo-card__main {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: start;
-  gap: 10px;
+.todo-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
-.todo-card__main input { width: 17px; height: 17px; accent-color: var(--acid); margin-top: 2px; }
-.todo-card__title { word-break: break-word; font-size: .86rem; line-height: 1.4; }
-.todo-card__edit-input {
+.todo-card__header-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
-  padding: 4px 8px;
+}
+.todo-card input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--acid);
+  flex-shrink: 0;
+  margin: 0;
+}
+.todo-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+.todo-card__title {
+  display: block;
+  width: 100%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-size: .86rem;
+  line-height: 1.45;
+  cursor: text;
+}
+.todo-card__edit-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--acid);
+  background: #121512;
+}
+.todo-card__edit-input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
   color: var(--ink);
   background: #0f110f;
   border: 1px solid var(--acid);
   font-size: .84rem;
+  outline: none;
+}
+.todo-card__edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.todo-card__edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.todo-card__edit-label {
+  color: var(--muted);
+  font-size: .64rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.todo-card__edit-field input,
+.todo-card__edit-field select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  color: var(--ink);
+  background: #0f110f;
+  border: 1px solid var(--line);
+  font-size: .74rem;
+  outline: none;
+}
+.todo-card__edit-field input:focus,
+.todo-card__edit-field select:focus {
+  border-color: var(--acid);
+}
+.todo-card__edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.save-edit-btn {
+  padding: 6px 12px;
+  color: #101210;
+  background: var(--acid);
+  border: 1px solid var(--acid);
+  cursor: pointer;
+  font-size: .72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+.save-edit-btn:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.cancel-edit-btn {
+  padding: 6px 12px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  font-size: .72rem;
+  text-transform: uppercase;
+}
+.cancel-edit-btn:hover {
+  border-color: var(--orange);
+  color: var(--orange);
 }
 .todo-card__top-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 .edit-btn {
   color: var(--acid);
@@ -486,7 +590,7 @@ input, button, select { font: inherit; }
 
 .todo-list { list-style: none; margin: 0; padding: 0 26px; }
 .todo { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; min-height: 64px; border-bottom: 1px solid var(--line); animation: arrive .25s ease-out both; }
-.todo input { width: 19px; height: 19px; accent-color: var(--acid); }
+.todo input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--acid); }
 .todo--done span { color: var(--muted); text-decoration: line-through; }
 .remove { color: var(--orange); background: transparent; border: 0; cursor: pointer; font-size: .72rem; text-transform: uppercase; }
 .remove:hover { text-decoration: underline; }
@@ -515,6 +619,7 @@ input, button, select { font: inherit; }
   .composer { grid-template-columns: 1fr; }
   .composer button { min-height: 50px; }
   .kanban-board { grid-template-columns: 1fr; }
+  .todo-card__edit-grid { grid-template-columns: 1fr; }
   .workbench__footer { align-items: flex-start; flex-direction: column; }
   .build-mark { display: none; }
 }
