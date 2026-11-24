@@ -303,8 +303,17 @@ function casaSeletor(el, seletor) {
   const alternativas = seletor.split(',').map((s) => s.trim()).filter(Boolean);
   return alternativas.some((alt) => {
     const tokens = alt.split(/\s+/).filter(Boolean);
-    const ultimo = tokens[tokens.length - 1];
-    return casaSeletorSimples(el, ultimo);
+    if (tokens.length === 0) return false;
+    if (!casaSeletorSimples(el, tokens[tokens.length - 1])) return false;
+    let atual = el.parentNode;
+    for (let i = tokens.length - 2; i >= 0; i -= 1) {
+      while (atual && !casaSeletorSimples(atual, tokens[i])) {
+        atual = atual.parentNode;
+      }
+      if (!atual) return false;
+      atual = atual.parentNode;
+    }
+    return true;
   });
 }
 
