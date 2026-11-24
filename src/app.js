@@ -57,6 +57,11 @@ const pomodoroStartBtn = document.querySelector('#pomodoro-start');
 const pomodoroPauseBtn = document.querySelector('#pomodoro-pause');
 const pomodoroResetBtn = document.querySelector('#pomodoro-reset');
 const pomodoroCompleteBtn = document.querySelector('#pomodoro-complete');
+const metricRate = document.querySelector('#metric-rate');
+const metricDelaysWip = document.querySelector('#metric-delays-wip');
+const metricEffort = document.querySelector('#metric-effort');
+const exportJsonBtn = document.querySelector('#export-json-btn');
+const importJsonInput = document.querySelector('#import-json-input');
 const emptyState = document.querySelector('#empty-state');
 
 let idArrastado = null;
@@ -472,6 +477,18 @@ function render() {
     undoBtn.disabled = store.pilhaUndo.length === 0;
   }
 
+  const stats = store.estatisticas();
+  if (metricRate) {
+    metricRate.textContent = `${stats.taxaConclusao}%`;
+  }
+  if (metricDelaysWip) {
+    metricDelaysWip.textContent = `${stats.atrasadas} atrasadas · WIP ${stats.wipAtual} / ${stats.limiteWip}`;
+  }
+  if (metricEffort) {
+    const sinal = stats.variacaoEsforcoMin > 0 ? `+${stats.variacaoEsforcoMin}` : String(stats.variacaoEsforcoMin);
+    metricEffort.textContent = `Estimado: ${stats.estimativaTotalMin} min · Real: ${stats.esforcoRealTotalMin} min (${sinal} min)`;
+  }
+
   const tarefasVisiveis = store.filtrar({
     statusFiltro: store.statusFiltro,
     prioridade: filterPrioritySelect?.value || 'todas',
@@ -610,6 +627,38 @@ if (pomodoroStartBtn) pomodoroStartBtn.addEventListener('click', iniciarPomodoro
 if (pomodoroPauseBtn) pomodoroPauseBtn.addEventListener('click', pausarPomodoro);
 if (pomodoroResetBtn) pomodoroResetBtn.addEventListener('click', reiniciarPomodoro);
 if (pomodoroCompleteBtn) pomodoroCompleteBtn.addEventListener('click', concluirCicloPomodoro);
+
+if (exportJsonBtn) {
+  exportJsonBtn.addEventListener('click', () => {
+    const json = store.exportarJSON();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'todolab-v1.2.0.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+if (importJsonInput) {
+  importJsonInput.addEventListener('change', () => {
+    const arquivo = importJsonInput.files?.[0];
+    if (!arquivo) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const resultado = store.importarJSON(String(reader.result || ''));
+      if (!resultado.sucesso) {
+        exibirAvisoKanban(resultado.erros.join(' '));
+      } else {
+        limparAvisoKanban();
+      }
+      importJsonInput.value = '';
+      render();
+    };
+    reader.readAsText(arquivo);
+  });
+}
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();

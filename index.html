@@ -174,9 +174,36 @@
 
         <p id="filter-empty-state" class="filter-empty-state" hidden>Nenhuma tarefa encontrada para o filtro ou busca aplicada.</p>
 
+        <section id="telemetry-panel" class="telemetry-panel" aria-label="Painel de Telemetria de Qualidade">
+          <div class="telemetry-metrics">
+            <div class="metric-box">
+              <span class="label">Taxa de conclusão</span>
+              <strong id="metric-rate">0%</strong>
+            </div>
+            <div class="metric-box">
+              <span class="label">Atrasadas / WIP</span>
+              <strong id="metric-delays-wip">0 atrasadas · WIP 0 / 2</strong>
+            </div>
+            <div class="metric-box">
+              <span class="label">Estimativa vs. Esforço Real</span>
+              <strong id="metric-effort">Estimado: 0 min · Real: 0 min</strong>
+            </div>
+          </div>
+          <div class="telemetry-actions">
+            <button id="export-json-btn" type="button">Exportar JSON</button>
+            <label class="import-label" for="import-json-input">Importar JSON</label>
+            <input
+              id="import-json-input"
+              type="file"
+              accept=".json,application/json"
+              aria-label="Importar arquivo JSON versionado"
+            />
+          </div>
+        </section>
+
         <footer class="workbench__footer">
           <p id="empty-state">Nenhuma tarefa ainda. Comece com um critério claro.</p>
-          <p class="build-mark">build 0.1 · legado inicial</p>
+          <p class="build-mark">build 1.2 · Aegis QA</p>
         </footer>
       </section>
 

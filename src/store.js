@@ -5,6 +5,8 @@ const PRIORIDADES_VALIDAS = new Set(['alta', 'media', 'baixa']);
 const FILTROS_STATUS_VALIDOS = new Set(['todas', 'ativas', 'concluidas']);
 const PESO_PRIORIDADE = { alta: 0, media: 1, baixa: 2 };
 const LIMITE_TITULO = 200;
+const LIMITE_IMPORTACAO_TAREFAS = 5000;
+const VERSAO_SCHEMA = '1.2.0';
 const MS_POR_DIA = 86_400_000;
 let sequenciaId = 0;
 
@@ -149,6 +151,169 @@ export function ordenarTarefas(tarefas = []) {
     const criadaB = Date.parse(b?.criadaEm || '') || 0;
     return criadaA - criadaB;
   });
+}
+
+export function calcularEstatisticas(tarefas = [], dataReferencia = new Date(), limiteWip = 2) {
+  const lista = Array.isArray(tarefas) ? tarefas : [];
+  const total = lista.length;
+  const porColuna = { todo: 0, in_progress: 0, review: 0, done: 0 };
+  const porPrioridade = { alta: 0, media: 0, baixa: 0 };
+
+  let concluidas = 0;
+  let atrasadas = 0;
+  let venceHoje = 0;
+  let proximas = 0;
+  let estimativaTotalMin = 0;
+  let esforcoRealTotalMin = 0;
+
+  for (const tarefa of lista) {
+    if (!tarefa || typeof tarefa !== 'object') continue;
+    const status = STATUS_VALIDOS.has(tarefa.status)
+      ? tarefa.status
+      : (tarefa.concluida ? 'done' : 'todo');
+    const concluida = Boolean(tarefa.concluida || status === 'done');
+    if (concluida) concluidas += 1;
+
+    porColuna[status] += 1;
+    porPrioridade[normalizarPrioridade(tarefa.prioridade)] += 1;
+
+    const prazo = classificarVencimento({ ...tarefa, concluida, status }, dataReferencia);
+    if (prazo === 'atrasada') atrasadas += 1;
+    else if (prazo === 'vence_hoje') venceHoje += 1;
+    else if (prazo === 'proxima') proximas += 1;
+
+    estimativaTotalMin += normalizarMinutosNaoNegativos(tarefa.estimativaMin);
+    esforcoRealTotalMin += normalizarMinutosNaoNegativos(tarefa.esforcoRealMin);
+  }
+
+  const pendentes = total - concluidas;
+  const taxaConclusao = total === 0 ? 0 : Number(((concluidas / total) * 100).toFixed(1));
+  const wipAtual = porColuna.in_progress;
+  const limiteSeguro = Number.isInteger(limiteWip) && limiteWip >= 1 ? limiteWip : 2;
+  const wipExcedido = wipAtual > limiteSeguro;
+  const variacaoEsforcoMin = esforcoRealTotalMin - estimativaTotalMin;
+
+  return {
+    total,
+    pendentes,
+    concluidas,
+    taxaConclusao,
+    porColuna,
+    porPrioridade,
+    atrasadas,
+    venceHoje,
+    proximas,
+    wipAtual,
+    limiteWip: limiteSeguro,
+    wipExcedido,
+    estimativaTotalMin,
+    esforcoRealTotalMin,
+    variacaoEsforcoMin,
+  };
+}
+
+export function validarSchemaImportacao(payload) {
+  const erros = [];
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { valido: false, erros: ['Payload raiz inválido: esperado objeto JSON.'], dadosSanitizados: null };
+  }
+
+  if (payload.produto !== 'TodoLab') {
+    erros.push('Produto inválido no arquivo (esperado "TodoLab").');
+  }
+  if (payload.versaoSchema !== VERSAO_SCHEMA) {
+    erros.push(`Versão de esquema incompatível: esperado "${VERSAO_SCHEMA}".`);
+  }
+  if (!Array.isArray(payload.tarefas)) {
+    erros.push('Campo "tarefas" deve ser um array.');
+    return { valido: false, erros, dadosSanitizados: null };
+  }
+  if (payload.tarefas.length > LIMITE_IMPORTACAO_TAREFAS) {
+    erros.push(`Limite máximo de ${LIMITE_IMPORTACAO_TAREFAS} tarefas excedido na importação.`);
+    return { valido: false, erros, dadosSanitizados: null };
+  }
+
+  const limiteWip = Number.isInteger(payload.limiteWip) && payload.limiteWip >= 1 ? payload.limiteWip : 2;
+  const tarefasSanitizadas = [];
+
+  for (let i = 0; i < payload.tarefas.length; i += 1) {
+    const item = payload.tarefas[i];
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      erros.push(`Tarefa na posição ${i} não é um objeto válido.`);
+      continue;
+    }
+
+    if (typeof item.id !== 'string' || !item.id.trim()) {
+      erros.push(`Tarefa na posição ${i} possui "id" inválido.`);
+    }
+
+    const { erro: erroTitulo, titulo } = extrairTituloNormalizado(item.titulo);
+    if (erroTitulo) {
+      erros.push(`Tarefa na posição ${i}: ${erroTitulo}`);
+    }
+
+    if (typeof item.concluida !== 'boolean') {
+      erros.push(`Tarefa na posição ${i} possui campo "concluida" não booleano.`);
+    }
+
+    if (!STATUS_VALIDOS.has(item.status)) {
+      erros.push(`Tarefa na posição ${i} possui "status" inválido.`);
+    }
+
+    if (!PRIORIDADES_VALIDAS.has(item.prioridade)) {
+      erros.push(`Tarefa na posição ${i} possui "prioridade" inválida.`);
+    }
+
+    let dataVencimento = null;
+    if (item.dataVencimento !== undefined && item.dataVencimento !== null && item.dataVencimento !== '') {
+      dataVencimento = normalizarDataVencimento(item.dataVencimento);
+      if (!dataVencimento) {
+        erros.push(`Tarefa na posição ${i} possui "dataVencimento" inválida.`);
+      }
+    }
+
+    if (typeof item.estimativaMin !== 'number' || !Number.isFinite(item.estimativaMin) || item.estimativaMin < 0) {
+      erros.push(`Tarefa na posição ${i} possui "estimativaMin" inválida.`);
+    }
+
+    if (typeof item.esforcoRealMin !== 'number' || !Number.isFinite(item.esforcoRealMin) || item.esforcoRealMin < 0) {
+      erros.push(`Tarefa na posição ${i} possui "esforcoRealMin" inválido.`);
+    }
+
+    if (erros.length === 0) {
+      const agora = new Date().toISOString();
+      const criadaEm = typeof item.criadaEm === 'string' && item.criadaEm ? item.criadaEm : agora;
+      const atualizadaEm = typeof item.atualizadaEm === 'string' && item.atualizadaEm ? item.atualizadaEm : criadaEm;
+
+      tarefasSanitizadas.push({
+        id: item.id.trim(),
+        titulo,
+        concluida: item.status === 'done' ? true : item.concluida,
+        status: item.status,
+        prioridade: item.prioridade,
+        dataVencimento,
+        estimativaMin: item.estimativaMin,
+        esforcoRealMin: item.esforcoRealMin,
+        criadaEm,
+        atualizadaEm,
+      });
+    }
+  }
+
+  if (erros.length > 0) {
+    return { valido: false, erros, dadosSanitizados: null };
+  }
+
+  return {
+    valido: true,
+    erros: [],
+    dadosSanitizados: {
+      produto: 'TodoLab',
+      versaoSchema: VERSAO_SCHEMA,
+      limiteWip,
+      tarefas: tarefasSanitizadas,
+    },
+  };
 }
 
 function normalizarRegistroArmazenado(item) {
@@ -582,5 +747,52 @@ export class TodoStore {
     });
 
     return ordenar ? ordenarTarefas(filtradas) : filtradas.map((item) => ({ ...item }));
+  }
+
+  estatisticas(dataReferencia = new Date()) {
+    return calcularEstatisticas(this.tarefas, dataReferencia, this.limiteWip);
+  }
+
+  exportarJSON() {
+    return JSON.stringify(
+      {
+        produto: 'TodoLab',
+        versaoSchema: VERSAO_SCHEMA,
+        exportadoEm: new Date().toISOString(),
+        limiteWip: this.limiteWip,
+        tarefas: this.tarefas.map((item) => ({ ...item })),
+      },
+      null,
+      2
+    );
+  }
+
+  importarJSON(jsonBruto) {
+    if (typeof jsonBruto !== 'string' || !jsonBruto.trim()) {
+      return { sucesso: false, erros: ['Conteúdo JSON vazio ou inválido.'] };
+    }
+    if (jsonBruto.length > 5_000_000) {
+      return { sucesso: false, erros: ['Arquivo excede o tamanho máximo permitido (5 MB).'] };
+    }
+
+    let analisado;
+    try {
+      analisado = JSON.parse(jsonBruto);
+    } catch {
+      return { sucesso: false, erros: ['Sintaxe JSON inválida no arquivo informado.'] };
+    }
+
+    const validacao = validarSchemaImportacao(analisado);
+    if (!validacao.valido) {
+      return { sucesso: false, erros: validacao.erros };
+    }
+
+    this.registrarSnapshotUndo();
+    this.tarefas = validacao.dadosSanitizados.tarefas;
+    this.limiteWip = validacao.dadosSanitizados.limiteWip;
+    this.salvarConfiguracao();
+    this.ultimoErro = null;
+    this.salvar();
+    return { sucesso: true, totalImportado: this.tarefas.length };
   }
 }

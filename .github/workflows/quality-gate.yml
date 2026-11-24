@@ -3,6 +3,7 @@ name: Quality Gate 0
 on:
   push:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
   contents: read
@@ -13,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -21,3 +24,11 @@ jobs:
         run: npm run lint
       - name: Build
         run: npm run build
+      - name: Unit Tests
+        run: npm run test:unit
+      - name: Acceptance Tests
+        run: npm run test:acceptance
+      - name: Coverage Gate (>= 60% em src/)
+        run: npm run test:coverage:gate
+      - name: Guard Tests
+        run: npm run guard:tests

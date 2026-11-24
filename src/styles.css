@@ -375,6 +375,57 @@ input, button, select { font: inherit; }
   font-size: .8rem;
 }
 .filter-empty-state[hidden] { display: none; }
+
+.telemetry-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 26px;
+  border-bottom: 1px solid var(--line);
+  background: rgb(16 18 16 / 78%);
+}
+.telemetry-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.metric-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.metric-box strong {
+  color: var(--acid);
+  font-size: .88rem;
+}
+.telemetry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.telemetry-actions button,
+.import-label {
+  padding: 8px 14px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  font-size: .74rem;
+  text-transform: uppercase;
+}
+.telemetry-actions button:hover,
+.import-label:hover {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+#import-json-input {
+  max-width: 220px;
+  font-size: .72rem;
+  color: var(--muted);
+}
 .todo--done .todo-card__title { color: var(--muted); text-decoration: line-through; }
 .todo-card__meta {
   display: flex;
