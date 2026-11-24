@@ -132,27 +132,32 @@ function reiniciarPomodoro() {
   atualizarVisorPomodoro();
 }
 
+function criarNo(tag, props = {}, ...filhos) {
+  const no = document.createElement(tag);
+  for (const [chave, valor] of Object.entries(props)) {
+    if (valor == null || chave === 'value') continue;
+    if (chave === 'className' || chave === 'textContent' || chave === 'checked' || chave === 'type') {
+      no[chave] = valor;
+    } else {
+      no.setAttribute(chave, String(valor));
+    }
+  }
+  if (filhos.length > 0) no.append(...filhos);
+  if (props.value != null) no.value = props.value;
+  return no;
+}
+
 function sincronizarSeletorPomodoro(tarefas) {
   if (pomodoroTaskId && !tarefas.some((tarefa) => tarefa.id === pomodoroTaskId)) {
     pausarPomodoro();
     pomodoroTaskId = '';
   }
-
   if (!pomodoroTaskSelect) return;
 
-  pomodoroTaskSelect.replaceChildren();
-  const placeholder = document.createElement('option');
-  placeholder.value = '';
-  placeholder.textContent = 'Selecione uma tarefa';
-  pomodoroTaskSelect.append(placeholder);
-
-  for (const tarefa of tarefas) {
-    const option = document.createElement('option');
-    option.value = tarefa.id;
-    option.textContent = tarefa.titulo;
-    pomodoroTaskSelect.append(option);
-  }
-
+  pomodoroTaskSelect.replaceChildren(
+    criarNo('option', { value: '', textContent: 'Selecione uma tarefa' }),
+    ...tarefas.map((t) => criarNo('option', { value: t.id, textContent: t.titulo }))
+  );
   pomodoroTaskSelect.value = pomodoroTaskId;
 }
 
@@ -262,188 +267,100 @@ function confirmarEdicaoInline(id, novoTexto, camposExtras = {}) {
   render();
 }
 
-function criarCampoEdicao(rotulo, controle) {
-  const field = document.createElement('label');
-  field.className = 'todo-card__edit-field';
-  const label = document.createElement('span');
-  label.className = 'todo-card__edit-label';
-  label.textContent = rotulo;
-  field.append(label, controle);
-  return field;
-}
-
-function criarInputNumeroEdicao(classe, valor, ariaLabel) {
-  const inputNum = document.createElement('input');
-  inputNum.type = 'number';
-  inputNum.className = classe;
-  inputNum.setAttribute('min', '0');
-  inputNum.setAttribute('step', '5');
-  inputNum.value = String(valor ?? 0);
-  inputNum.setAttribute('aria-label', ariaLabel);
-  return inputNum;
-}
-
 function criarPainelEdicao(tarefa, prioridade) {
-  const editPanel = document.createElement('div');
-  editPanel.className = 'todo-card__edit-panel';
-
-  const editInput = document.createElement('input');
-  editInput.type = 'text';
-  editInput.className = 'todo-card__edit-input';
-  editInput.value = tarefa.titulo;
-  editInput.setAttribute('maxlength', String(LIMITE_TITULO));
-  editInput.setAttribute('aria-label', `Editar título de ${tarefa.titulo}`);
-
-  const editPriority = document.createElement('select');
-  editPriority.className = 'todo-card__edit-priority';
-  editPriority.setAttribute('aria-label', `Prioridade de ${tarefa.titulo}`);
-  for (const [valor, rotulo] of Object.entries(ROTULOS_PRIORIDADE)) {
-    const opt = document.createElement('option');
-    opt.value = valor;
-    opt.textContent = rotulo;
-    editPriority.append(opt);
-  }
-  editPriority.value = prioridade;
-
-  const editDate = document.createElement('input');
-  editDate.type = 'date';
-  editDate.className = 'todo-card__edit-date';
-  editDate.value = tarefa.dataVencimento || '';
-  editDate.setAttribute('aria-label', `Prazo de ${tarefa.titulo}`);
-
-  const editEstimate = criarInputNumeroEdicao(
-    'todo-card__edit-estimate',
-    tarefa.estimativaMin,
-    `Estimativa em minutos de ${tarefa.titulo}`
-  );
-  const editReal = criarInputNumeroEdicao(
-    'todo-card__edit-real',
-    tarefa.esforcoRealMin,
-    `Esforço real em minutos de ${tarefa.titulo}`
-  );
-
-  const editGrid = document.createElement('div');
-  editGrid.className = 'todo-card__edit-grid';
-  editGrid.append(
-    criarCampoEdicao('Prioridade', editPriority),
-    criarCampoEdicao('Prazo', editDate),
-    criarCampoEdicao('Estimativa (min)', editEstimate),
-    criarCampoEdicao('Esforço Real (min)', editReal)
-  );
-
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'button';
-  saveBtn.className = 'save-edit-btn';
-  saveBtn.textContent = 'Salvar';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.className = 'cancel-edit-btn';
-  cancelBtn.textContent = 'Cancelar';
-
-  const editActions = document.createElement('div');
-  editActions.className = 'todo-card__edit-actions';
-  editActions.append(saveBtn, cancelBtn);
-
-  const lerNumero = (el) => (el.value.trim() === '' ? 0 : Number(el.value));
-  const salvarEdicao = () => {
-    const est = lerNumero(editEstimate);
-    const real = lerNumero(editReal);
-    confirmarEdicaoInline(tarefa.id, editInput.value, {
-      prioridade: editPriority.value,
-      dataVencimento: editDate.value || null,
-      estimativaMin: Number.isFinite(est) ? est : 0,
-      esforcoRealMin: Number.isFinite(real) ? real : 0,
-    });
+  const editInput = criarNo('input', {
+    type: 'text', className: 'todo-card__edit-input', value: tarefa.titulo,
+    maxlength: LIMITE_TITULO, 'aria-label': `Editar título de ${tarefa.titulo}`,
+  });
+  const editPriority = criarNo('select', {
+    className: 'todo-card__edit-priority', 'aria-label': `Prioridade de ${tarefa.titulo}`, value: prioridade,
+  }, ...Object.entries(ROTULOS_PRIORIDADE).map(([value, textContent]) => criarNo('option', { value, textContent })));
+  const editDate = criarNo('input', {
+    type: 'date', className: 'todo-card__edit-date', value: tarefa.dataVencimento || '',
+    'aria-label': `Prazo de ${tarefa.titulo}`,
+  });
+  const numOpts = (cls, val, label) => criarNo('input', {
+    type: 'number', className: cls, min: 0, step: 5, value: String(val ?? 0), 'aria-label': label,
+  });
+  const editEstimate = numOpts('todo-card__edit-estimate', tarefa.estimativaMin, `Estimativa em minutos de ${tarefa.titulo}`);
+  const editReal = numOpts('todo-card__edit-real', tarefa.esforcoRealMin, `Esforço real em minutos de ${tarefa.titulo}`);
+  const saveBtn = criarNo('button', { type: 'button', className: 'save-edit-btn', textContent: 'Salvar' });
+  const cancelBtn = criarNo('button', { type: 'button', className: 'cancel-edit-btn', textContent: 'Cancelar' });
+  const lerNum = (el) => (Number.isFinite(Number(el.value)) && el.value.trim() !== '' ? Number(el.value) : 0);
+  const salvar = () => confirmarEdicaoInline(tarefa.id, editInput.value, {
+    prioridade: editPriority.value, dataVencimento: editDate.value || null,
+    estimativaMin: lerNum(editEstimate), esforcoRealMin: lerNum(editReal),
+  });
+  const cancelar = () => { editingTaskId = null; limparAvisoKanban(); render(); };
+  const aoTecla = (e) => {
+    if (e.key === 'Escape') { e.preventDefault?.(); cancelar(); }
+    else if (e.key === 'Enter') { e.preventDefault(); salvar(); }
   };
-  const cancelarEdicao = () => {
-    editingTaskId = null;
-    limparAvisoKanban();
-    render();
-  };
-  const aoPressionarTecla = (event) => {
-    if (event.key === 'Escape') {
-      event.preventDefault?.();
-      cancelarEdicao();
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      salvarEdicao();
-    }
-  };
-
-  for (const campo of [editInput, editPriority, editDate, editEstimate, editReal]) {
-    campo.addEventListener('keydown', aoPressionarTecla);
-  }
-  saveBtn.addEventListener('click', salvarEdicao);
-  cancelBtn.addEventListener('click', cancelarEdicao);
-  editPanel.append(editInput, editGrid, editActions);
-
+  for (const campo of [editInput, editPriority, editDate, editEstimate, editReal]) campo.addEventListener('keydown', aoTecla);
+  saveBtn.addEventListener('click', salvar);
+  cancelBtn.addEventListener('click', cancelar);
+  const campo = (rotulo, ctrl) => criarNo('label', { className: 'todo-card__edit-field' },
+    criarNo('span', { className: 'todo-card__edit-label', textContent: rotulo }), ctrl);
+  const editPanel = criarNo('div', { className: 'todo-card__edit-panel' },
+    editInput,
+    criarNo('div', { className: 'todo-card__edit-grid' },
+      campo('Prioridade', editPriority), campo('Prazo', editDate),
+      campo('Estimativa (min)', editEstimate), campo('Esforço Real (min)', editReal)),
+    criarNo('div', { className: 'todo-card__edit-actions' }, saveBtn, cancelBtn)
+  );
   return { editPanel, editInput };
 }
 
 function criarCartaoTarefa(tarefa) {
   const emEdicao = editingTaskId === tarefa.id;
-  const item = document.createElement('li');
-  item.className = `todo-card ${tarefa.concluida ? 'todo--done' : ''}`;
+  const item = criarNo('li', {
+    className: `todo-card ${tarefa.concluida ? 'todo--done' : ''}`,
+    draggable: String(!emEdicao),
+  });
   item.dataset.id = tarefa.id;
   item.draggable = !emEdicao;
-  item.setAttribute('draggable', String(!emEdicao));
 
   item.addEventListener('dragstart', (event) => {
     idArrastado = tarefa.id;
     event.dataTransfer?.setData('text/plain', tarefa.id);
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = 'move';
-    }
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
     item.classList.add('todo-card--dragging');
   });
-
   item.addEventListener('dragend', () => {
     idArrastado = null;
     item.classList.remove('todo-card--dragging');
   });
 
-  const header = document.createElement('div');
-  header.className = 'todo-card__header';
-
-  const headerLeft = document.createElement('div');
-  headerLeft.className = 'todo-card__header-left';
-
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.checked = tarefa.concluida;
-  checkbox.setAttribute('aria-label', `Marcar ${tarefa.titulo} como concluída`);
+  const checkbox = criarNo('input', {
+    type: 'checkbox',
+    checked: tarefa.concluida,
+    'aria-label': `Marcar ${tarefa.titulo} como concluída`,
+  });
   checkbox.addEventListener('change', () => {
     limparAvisoKanban();
     store.alternar(tarefa.id);
     render();
   });
-  headerLeft.append(checkbox);
 
   const prioridade = tarefa.prioridade || 'media';
-  const badgePrioridade = document.createElement('span');
-  badgePrioridade.className = `badge badge--prio-${prioridade}`;
-  badgePrioridade.textContent = ROTULOS_PRIORIDADE[prioridade] || 'Média';
-  headerLeft.append(badgePrioridade);
-
+  const headerLeft = criarNo('div', { className: 'todo-card__header-left' },
+    checkbox,
+    criarNo('span', { className: `badge badge--prio-${prioridade}`, textContent: ROTULOS_PRIORIDADE[prioridade] || 'Média' })
+  );
   const statusPrazo = classificarVencimento(tarefa);
   const rotuloPrazo = ROTULOS_VENCIMENTO[statusPrazo];
   if (rotuloPrazo) {
-    const badgePrazo = document.createElement('span');
-    badgePrazo.className = `badge badge--due-${statusPrazo}`;
-    badgePrazo.textContent = rotuloPrazo;
-    headerLeft.append(badgePrazo);
+    headerLeft.append(criarNo('span', { className: `badge badge--due-${statusPrazo}`, textContent: rotuloPrazo }));
   }
 
-  const actionsTop = document.createElement('div');
-  actionsTop.className = 'todo-card__top-actions';
-
+  const actionsTop = criarNo('div', { className: 'todo-card__top-actions' });
   if (!emEdicao) {
-    const editBtn = document.createElement('button');
-    editBtn.type = 'button';
-    editBtn.className = 'edit-btn';
-    editBtn.textContent = 'Editar';
-    editBtn.setAttribute('aria-label', `Editar ${tarefa.titulo}`);
+    const editBtn = criarNo('button', {
+      type: 'button',
+      className: 'edit-btn',
+      textContent: 'Editar',
+      'aria-label': `Editar ${tarefa.titulo}`,
+    });
     editBtn.addEventListener('click', () => {
       editingTaskId = tarefa.id;
       render();
@@ -451,29 +368,26 @@ function criarCartaoTarefa(tarefa) {
     actionsTop.append(editBtn);
   }
 
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'remove';
-  remove.textContent = 'Remover';
-  remove.setAttribute('aria-label', `Remover ${tarefa.titulo}`);
+  const remove = criarNo('button', {
+    type: 'button',
+    className: 'remove',
+    textContent: 'Remover',
+    'aria-label': `Remover ${tarefa.titulo}`,
+  });
   remove.addEventListener('click', () => {
     limparAvisoKanban();
     if (pomodoroTaskId === tarefa.id) {
       pausarPomodoro();
       pomodoroTaskId = '';
     }
-    if (editingTaskId === tarefa.id) {
-      editingTaskId = null;
-    }
+    if (editingTaskId === tarefa.id) editingTaskId = null;
     store.remover(tarefa.id);
     render();
   });
-
   actionsTop.append(remove);
-  header.append(headerLeft, actionsTop);
 
-  const body = document.createElement('div');
-  body.className = 'todo-card__body';
+  const header = criarNo('div', { className: 'todo-card__header' }, headerLeft, actionsTop);
+  const body = criarNo('div', { className: 'todo-card__body' });
 
   let editInputRef = null;
   if (emEdicao) {
@@ -481,71 +395,49 @@ function criarCartaoTarefa(tarefa) {
     body.append(editPanel);
     editInputRef = editInput;
   } else {
-    const title = document.createElement('span');
-    title.className = 'todo-card__title';
-    title.textContent = tarefa.titulo;
+    const title = criarNo('span', { className: 'todo-card__title', textContent: tarefa.titulo });
     title.addEventListener('dblclick', () => {
       editingTaskId = tarefa.id;
       render();
     });
     body.append(title);
-
     if (tarefa.dataVencimento) {
-      const dataTexto = document.createElement('span');
-      dataTexto.className = 'todo-card__date';
-      dataTexto.textContent = tarefa.dataVencimento;
-      body.append(dataTexto);
+      body.append(criarNo('span', { className: 'todo-card__date', textContent: tarefa.dataVencimento }));
     }
   }
-
-  const effortRow = document.createElement('div');
-  effortRow.className = 'todo-card__effort-row';
 
   const estimativa = tarefa.estimativaMin ?? 0;
   const real = tarefa.esforcoRealMin ?? 0;
   const desvioTexto = formatarDesvioEsforco(estimativa, real);
-
-  const effortLabel = document.createElement('span');
-  effortLabel.className = 'todo-card__effort';
-  effortLabel.textContent = `Estimativa: ${estimativa} min · Real: ${real} min`;
-  effortRow.append(effortLabel);
-
+  const effortRow = criarNo('div', { className: 'todo-card__effort-row' },
+    criarNo('span', { className: 'todo-card__effort', textContent: `Estimativa: ${estimativa} min · Real: ${real} min` })
+  );
   if (desvioTexto) {
-    const desvioBadge = document.createElement('span');
-    const positivo = real > estimativa;
-    desvioBadge.className = `badge ${positivo ? 'badge--over-effort' : 'badge--on-effort'}`;
-    desvioBadge.textContent = desvioTexto;
-    effortRow.append(desvioBadge);
+    effortRow.append(criarNo('span', {
+      className: `badge ${real > estimativa ? 'badge--over-effort' : 'badge--on-effort'}`,
+      textContent: desvioTexto,
+    }));
   }
 
-  const controlsRow = document.createElement('div');
-  controlsRow.className = 'todo-card__controls';
-
-  const addEffortBtn = document.createElement('button');
-  addEffortBtn.type = 'button';
-  addEffortBtn.className = 'effort-btn';
-  addEffortBtn.textContent = '+15 min';
-  addEffortBtn.setAttribute('aria-label', `Registrar +15 min de esforço em ${tarefa.titulo}`);
+  const addEffortBtn = criarNo('button', {
+    type: 'button',
+    className: 'effort-btn',
+    textContent: '+15 min',
+    'aria-label': `Registrar +15 min de esforço em ${tarefa.titulo}`,
+  });
   addEffortBtn.addEventListener('click', () => {
     store.registrarEsforco(tarefa.id, 15);
     render();
   });
 
-  const moveSelect = document.createElement('select');
-  moveSelect.className = 'kanban-move-select';
-  moveSelect.setAttribute('aria-label', `Mover ${tarefa.titulo} para coluna`);
-  for (const col of COLUNAS) {
-    const option = document.createElement('option');
-    option.value = col.status;
-    option.textContent = col.rotulo;
-    moveSelect.append(option);
-  }
-  moveSelect.value = tarefa.status;
-  moveSelect.addEventListener('change', () => {
-    moverTarefa(tarefa.id, moveSelect.value);
-  });
+  const moveSelect = criarNo('select', {
+    className: 'kanban-move-select',
+    'aria-label': `Mover ${tarefa.titulo} para coluna`,
+    value: tarefa.status,
+  }, ...COLUNAS.map((col) => criarNo('option', { value: col.status, textContent: col.rotulo })));
+  moveSelect.addEventListener('change', () => moverTarefa(tarefa.id, moveSelect.value));
 
-  controlsRow.append(addEffortBtn, moveSelect);
+  const controlsRow = criarNo('div', { className: 'todo-card__controls' }, addEffortBtn, moveSelect);
   item.append(header, body, effortRow, controlsRow);
   return { item, editInputRef };
 }
